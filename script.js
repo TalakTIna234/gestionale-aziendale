@@ -1,10 +1,3 @@
-// Configurazione Supabase
-import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js'
-
-const supabaseUrl = 'https://fodowfardgribthpgxxs.supabase.co'  // Sostituisci con il tuo URL
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk'  // Sostituisci con la tua chiave
-const supabase = createClient(supabaseUrl, supabaseKey)
-
 // Funzioni di gestione database
 async function salvaChiusura(data) {
     try {
@@ -565,7 +558,6 @@ function generaAlert(dati) {
         '<div class="empty-state">🎯 Tutto sotto controllo! Nessun alert da segnalare.</div>';
 }
 
-// Resto del codice rimane identico fino alla classe ChiusuraCassaSystem
 function showNotification(type, message) {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
@@ -596,7 +588,7 @@ function showNotification(type, message) {
     }, 4000);
 }
 
-// Funzioni per fatture e fornitori (rimangono identiche)
+// Funzioni per fatture e fornitori
 function caricaFornitori() {
     const fornitori = JSON.parse(localStorage.getItem('fornitori') || '[]');
     const container = document.getElementById('fornitoriList');
@@ -831,7 +823,7 @@ function eliminaRicorrenza(id) {
     }
 }
 
-// Classi per calendario e chiusura cassa (con modifiche per database)
+// Classi per calendario e chiusura cassa
 class CalendarChiusure {
     constructor() {
         this.currentDate = new Date();
@@ -894,13 +886,12 @@ class CalendarChiusure {
             const dateStr = date.toISOString().split('T')[0];
             const isToday = dateStr === new Date().toISOString().split('T')[0];
             
-            // Controlla se ci sono dati per questo giorno (prima nel database, poi localStorage)
+            // Controlla se ci sono dati per questo giorno
             let hasData = false;
             try {
                 const chiusura = await caricaChiusura(dateStr);
                 hasData = !!chiusura;
             } catch (error) {
-                // Fallback a localStorage
                 hasData = !!localStorage.getItem(`chiusura_${dateStr}`);
             }
             
@@ -1340,7 +1331,7 @@ class ChiusuraCassaSystem {
             this.showModal('success', 'Chiusura salvata con successo nel database cloud!');
             this.updateStatus('ok', 'Dati salvati nel database');
             
-             // Aggiorna il calendario se esiste
+            // Aggiorna il calendario se esiste
             if (window.calendarChiusure) {
                 window.calendarChiusure.render();
             }
@@ -1358,7 +1349,8 @@ class ChiusuraCassaSystem {
         
         const getValue = (id) => parseFloat(document.getElementById(id)?.value || 0);
         const scontrinatoTotale = getValue('scontrinatoTotale');
-        const scontrinatoContanti = getValue('scontrinatoContanti');
+	const scontrinatoContanti = getValue('scontrinatoContanti');
+
         const scontrinatoPOS = getValue('scontrinatoPOS');
         
         const differenzaScontrinato = Math.abs(scontrinatoTotale - (scontrinatoContanti + scontrinatoPOS));
