@@ -1,4 +1,3 @@
-// Funzioni di gestione database
 async function salvaChiusura(data) {
     try {
         const chiusuraData = {
@@ -11,7 +10,8 @@ async function salvaChiusura(data) {
             drop_pos: parseFloat(data.dropPOS) || 0,
             drop_cash: parseFloat(data.dropCash) || 0,
             monete_precedenti: parseFloat(data.monetePrecedenti) || 0,
-            monete_attuali: parseFloat(data.moneteAttuali) || 0
+            monete_attuali: parseFloat(data.moneteAttuali) || 0,
+            contanti_totali_cassa: parseFloat(data.contantiTotaliCassa) || 0
         };
 
         const { error } = await supabase
@@ -28,7 +28,6 @@ async function salvaChiusura(data) {
     } catch (error) {
         console.error('Errore salvataggio:', error);
         showNotification('error', 'Errore nel salvare: ' + error.message);
-        // Fallback a localStorage
         localStorage.setItem(`chiusura_${data.data}`, JSON.stringify(data));
         showNotification('warning', 'Salvato in locale come backup');
         return false;
@@ -58,14 +57,14 @@ async function caricaChiusura(data) {
                 dropPOS: chiusura.drop_pos,
                 dropCash: chiusura.drop_cash,
                 monetePrecedenti: chiusura.monete_precedenti,
-                moneteAttuali: chiusura.monete_attuali
+                moneteAttuali: chiusura.monete_attuali,
+                contantiTotaliCassa: chiusura.contanti_totali_cassa
             };
         }
         
         return null;
     } catch (error) {
         console.error('Errore caricamento:', error);
-        // Fallback a localStorage
         const localData = localStorage.getItem(`chiusura_${data}`);
         return localData ? JSON.parse(localData) : null;
     }
@@ -112,7 +111,6 @@ async function updateTodayRevenue() {
                 revenueEl.textContent = '€0';
             }
         } catch (error) {
-            // Fallback a localStorage
             const localData = localStorage.getItem(`chiusura_${today}`);
             if (localData) {
                 const data = JSON.parse(localData);
@@ -201,7 +199,6 @@ async function raccogliDatiFinanziari(start, end) {
     let chiusure = [];
     
     try {
-        // Carica chiusure dal database invece che da localStorage
         const { data: chiusureDB, error } = await supabase
             .from('chiusure')
             .select('*')
@@ -221,11 +218,11 @@ async function raccogliDatiFinanziari(start, end) {
             dropPOS: c.drop_pos || 0,
             dropCash: c.drop_cash || 0,
             monetePrecedenti: c.monete_precedenti || 0,
-            moneteAttuali: c.monete_attuali || 0
+            moneteAttuali: c.monete_attuali || 0,
+            contantiTotaliCassa: c.contanti_totali_cassa || 0
         }));
     } catch (error) {
         console.error('Errore caricamento dati finanziari:', error);
-        // Fallback a localStorage se il database non è disponibile
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key.startsWith('chiusura_')) {
@@ -588,7 +585,6 @@ function showNotification(type, message) {
     }, 4000);
 }
 
-// Funzioni per fatture e fornitori
 function caricaFornitori() {
     const fornitori = JSON.parse(localStorage.getItem('fornitori') || '[]');
     const container = document.getElementById('fornitoriList');
@@ -823,7 +819,25 @@ function eliminaRicorrenza(id) {
     }
 }
 
-// Classi per calendario e chiusura cassa
+async function caricaMoneteGiornoPrecedente() {
+    const ieri = new Date();
+    ieri.setDate(ieri.getDate() - 1);
+    const ieriStr = ieri.toISOString().split('T')[0];
+    
+    try {
+        const datiIeri = await caricaChiusura(ieriStr);
+        if (datiIeri && datiIeri.moneteAttuali) {
+            const monetePrecedentiInput = document.getElementById('monetePrecedenti');
+            if (monetePrecedentiInput) {
+                monetePrecedentiInput.value = datiIeri.moneteAttuali;
+                showNotification('info', `Monete precedenti caricate: €${datiIeri.moneteAttuali}`);
+            }
+        }
+    } catch (error) {
+        console.log('Nessun dato trovato per il giorno precedente');
+    }
+}
+
 class CalendarChiusure {
     constructor() {
         this.currentDate = new Date();
@@ -873,20 +887,17 @@ class CalendarChiusure {
         const headers = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
         headers.forEach(h => html += `<div class="calendar-header">${h}</div>`);
         
-        // Giorni del mese precedente
         for (let i = startDay - 1; i > 1; i--) {
             const prevDate = new Date(firstDay);
             prevDate.setDate(prevDate.getDate() - i + 1);
             html += `<div class="calendar-day other-month">${prevDate.getDate()}</div>`;
         }
         
-        // Giorni del mese corrente
         for (let day = 1; day <= lastDay.getDate(); day++) {
             const date = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), day);
             const dateStr = date.toISOString().split('T')[0];
             const isToday = dateStr === new Date().toISOString().split('T')[0];
             
-            // Controlla se ci sono dati per questo giorno
             let hasData = false;
             try {
                 const chiusura = await caricaChiusura(dateStr);
@@ -902,7 +913,6 @@ class CalendarChiusure {
             html += `<div class="${classes.join(' ')}" data-date="${dateStr}" onclick="window.calendarChiusure.selectDate('${dateStr}')">${day}</div>`;
         }
         
-        // Giorni del mese successivo
         const remainingCells = 42 - (startDay - 1) - lastDay.getDate();
         for (let day = 1; day <= remainingCells; day++) {
             html += `<div class="calendar-day other-month">${day}</div>`;
@@ -914,12 +924,10 @@ class CalendarChiusure {
     async selectDate(dateStr) {
         this.selectedDate = dateStr;
         
-        // Rimuovi selezione precedente
         document.querySelectorAll('.calendar-day.selected').forEach(el => {
             el.classList.remove('selected');
         });
         
-        // Aggiungi selezione corrente
         const selectedEl = document.querySelector(`[data-date="${dateStr}"]`);
         if (selectedEl) selectedEl.classList.add('selected');
         
@@ -953,6 +961,8 @@ Drop:
 Monete:
   - Precedenti:         €${(data.monetePrecedenti || 0).toFixed(2)}
   - Attuali:            €${(data.moneteAttuali || 0).toFixed(2)}
+
+Contanti Totali Cassa:  €${(data.contantiTotaliCassa || 0).toFixed(2)}
                     </pre>
                     <button onclick="window.calendarChiusure.printDay('${dateStr}')">🖨️ Stampa</button>
                     <button onclick="window.calendarChiusure.exportDay('${dateStr}')">📥 Esporta</button>
@@ -1012,6 +1022,8 @@ Drop:
 Monete:
   - Precedenti:         €${(data.monetePrecedenti || 0).toFixed(2)}
   - Attuali:            €${(data.moneteAttuali || 0).toFixed(2)}
+
+Contanti Totali Cassa:  €${(data.contantiTotaliCassa || 0).toFixed(2)}
                     </pre>
                 </body>
             </html>
@@ -1090,21 +1102,18 @@ class CassaCalendar {
         const headers = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
         headers.forEach(h => html += `<div class="cassa-calendar-header">${h}</div>`);
         
-        // Giorni del mese precedente
         for (let i = startDay - 1; i > 1; i--) {
             const prevDate = new Date(firstDay);
             prevDate.setDate(prevDate.getDate() - i + 1);
             html += `<div class="cassa-calendar-day other-month">${prevDate.getDate()}</div>`;
         }
         
-        // Giorni del mese corrente
         for (let day = 1; day <= lastDay.getDate(); day++) {
             const date = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), day);
             const dateStr = date.toISOString().split('T')[0];
             const isToday = dateStr === new Date().toISOString().split('T')[0];
             const isSelected = dateStr === this.selectedDate;
             
-            // Controlla se ci sono dati per questo giorno
             let hasData = false;
             try {
                 const chiusura = await caricaChiusura(dateStr);
@@ -1121,7 +1130,6 @@ class CassaCalendar {
             html += `<div class="${classes.join(' ')}" data-date="${dateStr}" onclick="window.cassaCalendar.selectDate('${dateStr}')">${day}</div>`;
         }
         
-        // Giorni del mese successivo
         const remainingCells = 42 - (startDay - 1) - lastDay.getDate();
         for (let day = 1; day <= remainingCells; day++) {
             html += `<div class="cassa-calendar-day other-month">${day}</div>`;
@@ -1135,11 +1143,9 @@ class CassaCalendar {
         this.render();
         this.updateSelectedDateInfo();
         
-        // Aggiorna la data nel form di chiusura cassa
         const dateInput = document.getElementById('data');
         if (dateInput) {
             dateInput.value = dateStr;
-            // Carica i dati per questa data se esistono
             if (window.chiusuraCassaSystem) {
                 window.chiusuraCassaSystem.loadData(dateStr);
             }
@@ -1171,30 +1177,29 @@ class ChiusuraCassaSystem {
         this.bindEvents();
         this.loadTodayData();
         this.updateCalculations();
+        caricaMoneteGiornoPrecedente();
     }
     
     bindEvents() {
-        // Auto-calcolo quando cambiano i valori
         const inputs = this.form?.querySelectorAll('input[type="number"]') || [];
         inputs.forEach(input => {
             input.addEventListener('input', () => this.updateCalculations());
             input.addEventListener('change', () => this.updateCalculations());
         });
         
-        // Bottoni azione
         const saveBtn = document.getElementById('salvaChiusura');
         const verifyBtn = document.getElementById('verificaCompleta');
         const exportBtn = document.getElementById('esportaReport');
+        const loadMoneteBtn = document.getElementById('caricaMonetePrecedenti');
         
         if (saveBtn) saveBtn.onclick = () => this.saveData();
         if (verifyBtn) verifyBtn.onclick = () => this.verifyComplete();
         if (exportBtn) exportBtn.onclick = () => this.exportReport();
+        if (loadMoneteBtn) loadMoneteBtn.onclick = () => caricaMoneteGiornoPrecedente();
         
-        // Chiusura modale
         const closeBtn = this.modal?.querySelector('.close');
         if (closeBtn) closeBtn.onclick = () => this.closeModal();
         
-        // Data picker
         const dataInput = document.getElementById('data');
         if (dataInput) {
             dataInput.value = new Date().toISOString().split('T')[0];
@@ -1211,7 +1216,6 @@ class ChiusuraCassaSystem {
         try {
             const data = await caricaChiusura(date);
             if (data) {
-                // Popola i campi del form con i dati caricati
                 Object.keys(data).forEach(key => {
                     const input = document.getElementById(key);
                     if (input && key !== 'data') {
@@ -1222,7 +1226,6 @@ class ChiusuraCassaSystem {
                 this.updateStatus('ok', 'Dati caricati dal database');
                 return data;
             } else {
-                // Resetta il form se non ci sono dati
                 const inputs = this.form?.querySelectorAll('input[type="number"]') || [];
                 inputs.forEach(input => input.value = '');
                 this.updateCalculations();
@@ -1238,7 +1241,6 @@ class ChiusuraCassaSystem {
     updateCalculations() {
         const getValue = (id) => parseFloat(document.getElementById(id)?.value || 0);
         
-        // Calcoli principali
         const scontrinatoTotale = getValue('scontrinatoTotale');
         const scontrinatoContanti = getValue('scontrinatoContanti');
         const scontrinatoPOS = getValue('scontrinatoPOS');
@@ -1248,8 +1250,8 @@ class ChiusuraCassaSystem {
         const dropCash = getValue('dropCash');
         const monetePrecedenti = getValue('monetePrecedenti');
         const moneteAttuali = getValue('moneteAttuali');
+        const contantiTotaliCassa = getValue('contantiTotaliCassa');
         
-        // Verifica coerenza scontrinato
         const sommaDettaglio = scontrinatoContanti + scontrinatoPOS;
         const differenzaScontrinato = Math.abs(scontrinatoTotale - sommaDettaglio);
         
@@ -1263,7 +1265,6 @@ class ChiusuraCassaSystem {
             }
         }
         
-        // Verifica articoli
         const sommaArticoli = art74 + art22;
         if (this.articoliVerification) {
             if (sommaArticoli > 0) {
@@ -1275,18 +1276,19 @@ class ChiusuraCassaSystem {
             }
         }
         
-        // Calcolo contanti in cassa
-        const totaleContanti = scontrinatoContanti + dropCash + (moneteAttuali - monetePrecedenti);
         const contantiEl = document.getElementById('totaleContanti');
-        if (contantiEl) contantiEl.textContent = `€${totaleContanti.toFixed(2)}`;
+        if (contantiEl) contantiEl.textContent = `€${contantiTotaliCassa.toFixed(2)}`;
         
-        // Calcolo fondo cassa
-        const fondoCassa = totaleContanti - scontrinatoContanti - dropCash + (moneteAttuali - monetePrecedenti) - 100;
+        const differenzaMonete = moneteAttuali - monetePrecedenti;
+        const fondoCassa = contantiTotaliCassa - scontrinatoContanti - dropCash - differenzaMonete - 100;
         
         if (this.fondoCassaResult) {
             this.fondoCassaResult.innerHTML = `
                 <div class="formula">
-                    Fondo Cassa = Contanti in Cassa - Scontrinato Contanti - Drop Cash + Differenza Monete - 100
+                    Fondo Cassa = Contanti Totali - Scontrinato Contanti - Drop Cash - Differenza Monete - 100
+                </div>
+                <div class="calculation-details">
+                    €${contantiTotaliCassa.toFixed(2)} - €${scontrinatoContanti.toFixed(2)} - €${dropCash.toFixed(2)} - €${differenzaMonete.toFixed(2)} - €100
                 </div>
                 <div class="result-value">€${fondoCassa.toFixed(2)}</div>
                 <div class="result-interpretation ${this.getResultClass(fondoCassa)}">
@@ -1295,7 +1297,6 @@ class ChiusuraCassaSystem {
             `;
         }
         
-        // Aggiorna status generale
         this.updateStatus(this.getOverallStatus(), 'Calcoli aggiornati');
     }
     
@@ -1323,7 +1324,8 @@ class ChiusuraCassaSystem {
             dropPOS: parseFloat(formData.get('dropPOS') || 0),
             dropCash: parseFloat(formData.get('dropCash') || 0),
             monetePrecedenti: parseFloat(formData.get('monetePrecedenti') || 0),
-            moneteAttuali: parseFloat(formData.get('moneteAttuali') || 0)
+            moneteAttuali: parseFloat(formData.get('moneteAttuali') || 0),
+            contantiTotaliCassa: parseFloat(formData.get('contantiTotaliCassa') || 0)
         };
         
         const success = await salvaChiusura(data);
@@ -1331,11 +1333,7 @@ class ChiusuraCassaSystem {
             this.showModal('success', 'Chiusura salvata con successo nel database cloud!');
             this.updateStatus('ok', 'Dati salvati nel database');
             
-            // Aggiorna il calendario se esiste
-            if (window.calendarChiusure) {
-                window.calendarChiusure.render();
-            }
-            if (window.cassaCalendar) {
+                       if (window.cassaCalendar) {
                 window.cassaCalendar.render();
             }
         } else {
@@ -1349,8 +1347,7 @@ class ChiusuraCassaSystem {
         
         const getValue = (id) => parseFloat(document.getElementById(id)?.value || 0);
         const scontrinatoTotale = getValue('scontrinatoTotale');
-	const scontrinatoContanti = getValue('scontrinatoContanti');
-
+        const scontrinatoContanti = getValue('scontrinatoContanti');
         const scontrinatoPOS = getValue('scontrinatoPOS');
         
         const differenzaScontrinato = Math.abs(scontrinatoTotale - (scontrinatoContanti + scontrinatoPOS));
@@ -1374,8 +1371,12 @@ class ChiusuraCassaSystem {
             dropPOS: parseFloat(formData.get('dropPOS') || 0),
             dropCash: parseFloat(formData.get('dropCash') || 0),
             monetePrecedenti: parseFloat(formData.get('monetePrecedenti') || 0),
-            moneteAttuali: parseFloat(formData.get('moneteAttuali') || 0)
+            moneteAttuali: parseFloat(formData.get('moneteAttuali') || 0),
+            contantiTotaliCassa: parseFloat(formData.get('contantiTotaliCassa') || 0)
         };
+        
+        const differenzaMonete = data.moneteAttuali - data.monetePrecedenti;
+        const fondoCassa = data.contantiTotaliCassa - data.scontrinatoContanti - data.dropCash - differenzaMonete - 100;
         
         const report = `
 REPORT CHIUSURA CASSA - ${new Date(data.data).toLocaleDateString('it-IT')}
@@ -1397,11 +1398,14 @@ DROP:
 MONETE:
 - Precedenti:       €${data.monetePrecedenti.toFixed(2)}
 - Attuali:          €${data.moneteAttuali.toFixed(2)}
-- Differenza:       €${(data.moneteAttuali - data.monetePrecedenti).toFixed(2)}
+- Differenza:       €${differenzaMonete.toFixed(2)}
 
-CALCOLI:
-- Contanti in Cassa: €${(data.scontrinatoContanti + data.dropCash + (data.moneteAttuali - data.monetePrecedenti)).toFixed(2)}
-- Fondo Cassa:      €${(data.scontrinatoContanti + data.dropCash + (data.moneteAttuali - data.monetePrecedenti) - data.scontrinatoContanti - data.dropCash + (data.moneteAttuali - data.monetePrecedenti) - 100).toFixed(2)}
+CONTANTI E FONDO CASSA:
+- Contanti Totali:  €${data.contantiTotaliCassa.toFixed(2)}
+- Fondo Cassa:      €${fondoCassa.toFixed(2)}
+
+CALCOLO FONDO CASSA:
+€${data.contantiTotaliCassa.toFixed(2)} - €${data.scontrinatoContanti.toFixed(2)} - €${data.dropCash.toFixed(2)} - €${differenzaMonete.toFixed(2)} - €100 = €${fondoCassa.toFixed(2)}
 
 ================================================================
 Report generato il ${new Date().toLocaleString('it-IT')}
@@ -1449,7 +1453,8 @@ Report generato il ${new Date().toLocaleString('it-IT')}
         const hasCalculationErrors = (this.verificationResult?.classList.contains('error') || false) ||
                                    (this.articoliVerification?.classList.contains('error') || false);
         
-        const fondoCassa = parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0;
+        const fondoCassaText = this.fondoCassaResult?.querySelector('.result-value')?.textContent || '€0';
+        const fondoCassa = parseFloat(fondoCassaText.replace('€', '')) || 0;
         
         if (hasCalculationErrors) return 'warning';
         if (Math.abs(fondoCassa) > 50) return 'warning';
@@ -1458,6 +1463,30 @@ Report generato il ${new Date().toLocaleString('it-IT')}
     
     getDateKey(date) {
         return date.toISOString().split('T')[0];
+    }
+}
+
+// Funzione per caricare automaticamente le monete del giorno precedente
+async function caricaMoneteGiornoPrecedente() {
+    const ieri = new Date();
+    ieri.setDate(ieri.getDate() - 1);
+    const ieriStr = ieri.toISOString().split('T')[0];
+    
+    try {
+        const datiIeri = await caricaChiusura(ieriStr);
+        if (datiIeri && datiIeri.moneteAttuali) {
+            const monetePrecedentiInput = document.getElementById('monetePrecedenti');
+            if (monetePrecedentiInput) {
+                monetePrecedentiInput.value = datiIeri.moneteAttuali;
+                showNotification('info', `Monete precedenti caricate automaticamente: €${datiIeri.moneteAttuali}`);
+                // Aggiorna i calcoli dopo aver caricato le monete
+                if (window.chiusuraCassaSystem) {
+                    window.chiusuraCassaSystem.updateCalculations();
+                }
+            }
+        }
+    } catch (error) {
+        console.log('Nessun dato trovato per il giorno precedente');
     }
 }
 
@@ -1520,15 +1549,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ricorrenzaForm) ricorrenzaForm.onsubmit = salvaRicorrenza;
     if (resetRicorrenzaBtn) resetRicorrenzaBtn.onclick = () => ricorrenzaForm.reset();
     
+    // Event listener per caricamento monete precedenti
+    const caricaMoneteBtn = document.getElementById('caricaMonetePrecedenti');
+    if (caricaMoneteBtn) caricaMoneteBtn.onclick = () => caricaMoneteGiornoPrecedente();
+    
     // Inizializzazione calendari e sistema chiusura cassa
     window.calendarChiusure = new CalendarChiusure();
     window.cassaCalendar = new CassaCalendar();
     window.chiusuraCassaSystem = new ChiusuraCassaSystem();
     
+    // Carica automaticamente le monete del giorno precedente all'avvio
+    setTimeout(() => {
+        caricaMoneteGiornoPrecedente();
+    }, 1000);
+    
     console.log('🎉 Sistema aziendale con database Supabase inizializzato con successo!');
 });
 
-// Funzione di aggiornamento data/ora (se non già presente)
+// Funzione di aggiornamento data/ora
 function aggiornaDataOra() {
     const now = new Date();
     const dateTimeEl = document.getElementById('currentDateTime');
