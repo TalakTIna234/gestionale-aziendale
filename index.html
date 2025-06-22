@@ -3,465 +3,559 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestionale Pro - Sistema Aziendale Avanzato</title>
+    <title>Gestionale Aziendale</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
         <header class="modern-header">
             <div class="header-container">
                 <div class="header-left">
-                    <h1>🏪 Gestionale Pro</h1>
-                    <div class="header-subtitle">Sistema Aziendale Avanzato</div>
+                    <h1>GESTIONALE</h1>
+                    <div class="header-subtitle">Sistema Aziendale</div>
                 </div>
+                
                 <div class="header-center">
                     <div class="clock-container">
-                        <div id="modernTime" class="modern-time"></div>
-                        <div id="modernDate" class="modern-date"></div>
+                        <div class="modern-time" id="modernTime">00:00:00</div>
+                        <div class="modern-date" id="modernDate">Caricamento...</div>
                     </div>
                     <div class="weather-badge">
-                        <span>☀️</span>
-                        <span>22°C Palermo</span>
+                        <span>🌤️</span>
+                        <span>22°C</span>
                     </div>
                 </div>
+                
                 <div class="header-right">
                     <div class="stats-widget">
                         <div class="stats-label">Oggi</div>
                         <div class="stats-value" id="todayRevenue">€0</div>
                     </div>
+                    
                     <div class="header-actions">
-                        <button class="action-btn" title="Backup" onclick="backupData()">💾</button>
-                        <button class="action-btn" title="Notifiche" onclick="toggleNotifications()">🔔<span class="notification-dot"></span></button>
-                        <button class="action-btn" title="Modalità Scura" onclick="toggleDarkMode()">🌙</button>
-                        <button class="action-btn" title="Impostazioni" onclick="openSettings()">⚙️</button>
+                        <button class="action-btn" onclick="backupData()" title="Backup Dati">
+                            💾
+                        </button>
+                        <button class="action-btn" onclick="toggleNotifications()" title="Notifiche">
+                            🔔
+                            <div class="notification-dot"></div>
+                        </button>
+                        <button class="action-btn" onclick="toggleDarkMode()" title="Modalità Scura">
+                            🌙
+                        </button>
+                        <button class="action-btn" onclick="openSettings()" title="Impostazioni">
+                            ⚙️
+                        </button>
                     </div>
                 </div>
             </div>
         </header>
 
         <nav class="main-nav">
-            <button class="nav-btn active" data-section="dashboard">Dashboard</button>
-            <button class="nav-btn" data-section="cassa">Chiusura Cassa</button>
-            <button class="nav-btn" data-section="fatture">Fatture</button>
-            <button class="nav-btn" data-section="ricorrenze">Ricorrenze</button>
-            <button class="nav-btn" data-section="calendario">Calendario</button>
+            <button class="nav-btn active" data-section="dashboard">📊 Dashboard</button>
+            <button class="nav-btn" data-section="cassa">💵 Chiusura Cassa</button>
+            <button class="nav-btn" data-section="fatture">📑 Fatture</button>
+            <button class="nav-btn" data-section="ricorrenze">🔁 Ricorrenze</button>
+            <button class="nav-btn" data-section="calendario">📅 Calendario</button>
         </nav>
 
-        <section id="dashboard-section" class="main-section active">
-            <h2>📊 Dashboard Aziendale Avanzata</h2>
-            <div class="dashboard-filters">
-                <div class="filter-group">
-                    <label>Periodo di Analisi:</label>
-                    <select id="dashboardPeriod">
-                        <option value="week">Settimana</option>
-                        <option value="month" selected>Mese</option>
-                        <option value="quarter">Trimestre</option>
-                        <option value="year">Anno</option>
-                        <option value="all">Tutto</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Anno:</label>
-                    <select id="dashboardYear">
-                        <option value="2024">2024</option>
-                        <option value="2025" selected>2025</option>
-                        <option value="2026">2026</option>
-                    </select>
-                </div>
-                <button id="refreshDashboard" class="btn btn-primary">🔄 Aggiorna</button>
-            </div>
-            <div class="kpi-grid">
-                <div class="kpi-card revenue">
-                    <div class="kpi-icon">💰</div>
-                    <div class="kpi-content">
-                        <h3>Ricavi Totali</h3>
-                        <div class="kpi-value" id="totalRevenue">€0.00</div>
-                        <div class="kpi-change" id="revenueChange">+0%</div>
-                    </div>
-                </div>
-                <div class="kpi-card expenses">
-                    <div class="kpi-icon">📤</div>
-                    <div class="kpi-content">
-                        <h3>Spese Totali</h3>
-                        <div class="kpi-value" id="totalExpenses">€0.00</div>
-                        <div class="kpi-change" id="expensesChange">+0%</div>
-                    </div>
-                </div>
-                <div class="kpi-card profit">
-                    <div class="kpi-icon">📈</div>
-                    <div class="kpi-content">
-                        <h3>Utile Netto</h3>
-                        <div class="kpi-value" id="netProfit">€0.00</div>
-                        <div class="kpi-change" id="profitChange">+0%</div>
-                    </div>
-                </div>
-                <div class="kpi-card vat">
-                    <div class="kpi-icon">🏛️</div>
-                    <div class="kpi-content">
-                        <h3>IVA da Versare</h3>
-                        <div class="kpi-value" id="vatToPay">€0.00</div>
-                        <div class="kpi-change" id="vatChange">+0%</div>
-                    </div>
-                </div>
-            </div>
-            <div class="charts-grid">
-                <div class="chart-container">
-                    <h3>📊 Andamento Mensile</h3>
-                    <canvas id="monthlyTrendChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>🥧 Distribuzione Entrate</h3>
-                    <canvas id="revenueDistributionChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>📉 Analisi Spese</h3>
-                    <canvas id="expensesAnalysisChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>💹 Trend IVA</h3>
-                    <canvas id="vatTrendChart"></canvas>
-                </div>
-            </div>
-            <div class="dashboard-sections">
-                <div class="dashboard-section">
-                    <h3>💰 Analisi Entrate</h3>
-                    <div class="section-content">
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">Scontrinato Cassa:</span>
-                                <span class="metric-value" id="cashRevenue">€0.00</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">Entrate Ricorrenti:</span>
-                                <span class="metric-value" id="recurringRevenue">€0.00</span>
-                            </div>
-                        </div>
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">Media Giornaliera:</span>
-                                <span class="metric-value" id="dailyAverage">€0.00</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">Crescita vs Periodo Prec.:</span>
-                                <span class="metric-value" id="revenueGrowth">+0%</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="dashboard-section">
-                    <h3>📤 Analisi Spese</h3>
-                    <div class="section-content">
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">Fatture Pagate:</span>
-                                <span class="metric-value" id="paidInvoices">€0.00</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">Fatture in Sospeso:</span>
-                                <span class="metric-value" id="pendingInvoices">€0.00</span>
-                            </div>
-                        </div>
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">Spese Ricorrenti:</span>
-                                <span class="metric-value" id="recurringExpenses">€0.00</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">Fatture Scadute:</span>
-                                <span class="metric-value critical" id="overdueInvoices">€0.00</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="dashboard-section">
-                    <h3>🏛️ Situazione Fiscale</h3>
-                    <div class="section-content">
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">IVA su Vendite (22%):</span>
-                                <span class="metric-value" id="salesVat">€0.00</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">IVA su Acquisti:</span>
-                                <span class="metric-value" id="purchaseVat">€0.00</span>
-                            </div>
-                        </div>
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">IVA Netta da Versare:</span>
-                                <span class="metric-value" id="netVat">€0.00</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">Prossima Scadenza:</span>
-                                <span class="metric-value" id="nextVatDeadline">16/07/2025</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="dashboard-section">
-                    <h3>🔮 Previsioni e Obiettivi</h3>
-                    <div class="section-content">
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">Obiettivo Mensile:</span>
-                                <span class="metric-value" id="monthlyTarget">€50,000</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">Raggiungimento:</span>
-                                <span class="metric-value" id="targetAchievement">0%</span>
-                            </div>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="targetProgress"></div>
-                        </div>
-                        <div class="metric-row">
-                            <div class="metric">
-                                <span class="metric-label">Previsione Fine Mese:</span>
-                                <span class="metric-value" id="monthEndForecast">€0.00</span>
-                            </div>
-                            <div class="metric">
-                                <span class="metric-label">Giorni Rimanenti:</span>
-                                <span class="metric-value" id="daysRemaining">0</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="alerts-section">
-                <h3>🚨 Alert e Notifiche</h3>
-                <div id="alertsContainer" class="alerts-container"></div>
-            </div>
-        </section>
-
-        <section id="cassa-section" class="main-section">
-            <h2>💵 Chiusura Cassa</h2>
-            <div class="cassa-calendar-section">
-                <h3>Calendario Chiusure</h3>
-                <div class="cassa-calendar-controls">
-                    <button id="cassaPrevMonth">&lt;</button>
-                    <span id="cassaCalendarMonth"></span>
-                    <button id="cassaNextMonth">&gt;</button>
-                </div>
-                <div id="cassaCalendarGrid" class="cassa-calendar-grid"></div>
-                <div id="selectedDateDisplay" class="selected-date-info"></div>
-            </div>
-            <form id="chiusuraCassaForm" class="main-form">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="scontrinatoTotale">Scontrinato Totale</label>
-                        <input type="number" step="0.01" id="scontrinatoTotale" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="scontrinatoContanti">Scontrinato Contanti</label>
-                        <input type="number" step="0.01" id="scontrinatoContanti" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="scontrinatoPos">Scontrinato POS</label>
-                        <input type="number" step="0.01" id="scontrinatoPos" required>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="art74">Art. 74</label>
-                        <input type="number" step="0.01" id="art74">
-                    </div>
-                    <div class="form-group">
-                        <label for="art22">Art. 22</label>
-                        <input type="number" step="0.01" id="art22">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="dropPos">Drop POS</label>
-                        <input type="number" step="0.01" id="dropPos">
-                    </div>
-                    <div class="form-group">
-                        <label for="dropCash">Drop Cash</label>
-                        <input type="number" step="0.01" id="dropCash">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="moneteGiornoPrecedente">Monete Giorno Precedente</label>
-                        <input type="number" step="0.01" id="moneteGiornoPrecedente">
-                    </div>
-                    <div class="form-group">
-                        <label for="moneteAttuali">Monete Attuali</label>
-                        <input type="number" step="0.01" id="moneteAttuali">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="totaleContantiCassa">Totale Contanti in Cassa</label>
-                        <input type="number" step="0.01" id="totaleContantiCassa">
-                    </div>
-                </div>
-                <div id="verificationResult" class="verification-result"></div>
-                <div id="articoliVerification" class="articoli-verification"></div>
-                <div id="differenzaMonete" class="calculation-result"></div>
-                <div class="fondo-cassa-result">
-                    <div class="formula">Fondo Cassa = Contanti in Cassa - Scontrinato Contanti - Drop Cash + Differenza Monete - 100</div>
-                    <div id="fondoCassaResult" class="result-value">€0.00</div>
-                    <div id="fondoCassaInterpretation" class="result-interpretation"></div>
-                </div>
-                <div class="form-actions">
-                    <button type="button" id="verificaCompleta" class="btn btn-primary">🔍 Verifica Completa</button>
-                    <button type="submit" id="salvaBtn" class="btn btn-success">💾 Salva Chiusura</button>
-                    <button type="button" id="esportaBtn" class="btn btn-secondary">📄 Esporta Report</button>
-                </div>
-            </form>
-        </section>
-
-        <section id="fatture-section" class="main-section">
-            <h2>📑 Gestione Fatture</h2>
-            <div class="fornitori-section">
-                <h3>👥 Gestione Fornitori</h3>
-                <div class="fornitori-controls">
-                    <input type="text" id="nuovoFornitore" placeholder="Aggiungi nuovo fornitore">
-                    <button id="aggiungiFornitore" class="btn btn-success">➕ Aggiungi</button>
-                </div>
-                <div id="fornitoriList" class="fornitori-list"></div>
-            </div>
-            <form id="fatturaForm" class="fattura-form">
-                <input type="hidden" id="fatturaId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="fornitore">Fornitore</label>
-                        <select id="fornitore" required>
-                            <option value="">Seleziona fornitore...</option>
+        <main>
+            <!-- Dashboard Section -->
+            <section id="dashboard-section" class="main-section active">
+                <h2>📊 Dashboard Aziendale Avanzata</h2>
+                
+                <div class="dashboard-filters">
+                    <div class="filter-group">
+                        <label>Periodo di Analisi:</label>
+                        <select id="dashboardPeriod">
+                            <option value="week">📅 Settimana</option>
+                            <option value="month" selected>🗓️ Mese</option>
+                            <option value="quarter">📆 Trimestre</option>
+                            <option value="year">🗓️ Anno</option>
+                            <option value="all">📊 Tutto</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label for="importoFattura">Importo</label>
-                        <input type="number" step="0.01" id="importoFattura" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="descrizioneFattura">Descrizione</label>
-                        <input type="text" id="descrizioneFattura" placeholder="Descrizione fattura">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="dataFattura">Data Fattura</label>
-                        <input type="date" id="dataFattura" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="scadenzaFattura">Scadenza</label>
-                        <input type="date" id="scadenzaFattura" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="modalitaPagamento">Modalità Pagamento</label>
-                        <select id="modalitaPagamento">
-                            <option value="bonifico">Bonifico</option>
-                            <option value="contanti">Contanti</option>
-                            <option value="assegno">Assegno</option>
-                            <option value="carta">Carta di Credito</option>
+                    
+                    <div class="filter-group">
+                        <label>Anno:</label>
+                        <select id="dashboardYear">
+                            <option value="2024">2024</option>
+                            <option value="2025" selected>2025</option>
+                            <option value="2026">2026</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label for="statoFattura">Stato</label>
-                        <select id="statoFattura">
+                    
+                    <button id="refreshDashboard">🔄 Aggiorna</button>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card revenue">
+                        <div class="kpi-icon">💰</div>
+                        <div class="kpi-content">
+                            <h3>Ricavi Totali</h3>
+                            <div class="kpi-value" id="totalRevenue">€0.00</div>
+                            <div class="kpi-change">+0%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="kpi-card expenses">
+                        <div class="kpi-icon">📤</div>
+                        <div class="kpi-content">
+                            <h3>Spese Totali</h3>
+                            <div class="kpi-value" id="totalExpenses">€0.00</div>
+                            <div class="kpi-change">+0%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="kpi-card profit">
+                        <div class="kpi-icon">📈</div>
+                        <div class="kpi-content">
+                            <h3>Utile Netto</h3>
+                            <div class="kpi-value" id="netProfit">€0.00</div>
+                            <div class="kpi-change">+0%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="kpi-card vat">
+                        <div class="kpi-icon">🏛️</div>
+                        <div class="kpi-content">
+                            <h3>IVA da Versare</h3>
+                            <div class="kpi-value" id="vatToPay">€0.00</div>
+                            <div class="kpi-change">+0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h3>📊 Andamento Mensile</h3>
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3>🥧 Distribuzione Entrate</h3>
+                        <canvas id="revenueDistributionChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3>📉 Analisi Spese</h3>
+                        <canvas id="expensesAnalysisChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3>💹 Trend IVA</h3>
+                        <canvas id="vatTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="dashboard-sections">
+                    <div class="dashboard-section">
+                        <h3>💰 Analisi Entrate</h3>
+                        <div class="section-content">
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">Scontrinato Cassa:</span>
+                                    <span class="metric-value" id="cashRevenue">€0.00</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Entrate Ricorrenti:</span>
+                                    <span class="metric-value" id="recurringRevenue">€0.00</span>
+                                </div>
+                            </div>
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">Media Giornaliera:</span>
+                                    <span class="metric-value">€0.00</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Crescita vs Periodo Prec.:</span>
+                                    <span class="metric-value">+0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="dashboard-section">
+                        <h3>📤 Analisi Spese</h3>
+                        <div class="section-content">
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">Fatture Pagate:</span>
+                                    <span class="metric-value" id="paidInvoices">€0.00</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Fatture in Sospeso:</span>
+                                    <span class="metric-value" id="pendingInvoices">€0.00</span>
+                                </div>
+                            </div>
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">Spese Ricorrenti:</span>
+                                    <span class="metric-value" id="recurringExpenses">€0.00</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Fatture Scadute:</span>
+                                    <span class="metric-value critical" id="overdueInvoices">€0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="dashboard-section">
+                        <h3>🏛️ Situazione Fiscale</h3>
+                        <div class="section-content">
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">IVA su Vendite (22%):</span>
+                                    <span class="metric-value" id="salesVat">€0.00</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">IVA su Acquisti:</span>
+                                    <span class="metric-value" id="purchaseVat">€0.00</span>
+                                </div>
+                            </div>
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">IVA Netta da Versare:</span>
+                                    <span class="metric-value" id="netVat">€0.00</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Prossima Scadenza:</span>
+                                    <span class="metric-value">16/07/2025</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="dashboard-section">
+                        <h3>🔮 Previsioni e Obiettivi</h3>
+                        <div class="section-content">
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">Obiettivo Mensile:</span>
+                                    <span class="metric-value" id="monthlyTarget">€50,000</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Raggiungimento:</span>
+                                    <span class="metric-value" id="targetAchievement">0%</span>
+                                </div>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="targetProgress"></div>
+                            </div>
+                            <div class="metric-row">
+                                <div class="metric">
+                                    <span class="metric-label">Previsione Fine Mese:</span>
+                                    <span class="metric-value">€0.00</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Giorni Rimanenti:</span>
+                                    <span class="metric-value">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alerts-section">
+                    <h3>🚨 Alert e Notifiche</h3>
+                    <div class="alerts-container" id="alertsContainer">
+                        <!-- Alert dinamici verranno inseriti qui -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chiusura Cassa Section -->
+            <section id="cassa-section" class="main-section">
+                <h2>💵 Chiusura Cassa</h2>
+                
+                <div class="cassa-calendar-section">
+                    <h3>📅 Calendario Chiusure</h3>
+                    <div class="cassa-calendar-controls">
+                        <button id="cassaPrevMonth">◀ Precedente</button>
+                        <div id="cassaCalendarMonth">Mese Anno</div>
+                        <button id="cassaNextMonth">Successivo ▶</button>
+                    </div>
+                    <div class="cassa-calendar-grid" id="cassaCalendarGrid">
+                        <!-- Calendario generato dinamicamente -->
+                    </div>
+                    <div class="selected-date-info" id="selectedDateInfo">
+                        Data selezionata: Oggi
+                    </div>
+                </div>
+
+                <form id="chiusuraForm" class="main-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="data">📅 Data</label>
+                            <input type="date" id="data" name="data" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="scontrinatoTotale">💰 Scontrinato Totale</label>
+                            <input type="number" id="scontrinatoTotale" name="scontrinatoTotale" step="0.01" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="scontrinatoContanti">💵 Scontrinato Contanti</label>
+                            <input type="number" id="scontrinatoContanti" name="scontrinatoContanti" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="scontrinatoPOS">💳 Scontrinato POS</label>
+                            <input type="number" id="scontrinatoPOS" name="scontrinatoPOS" step="0.01" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="art74">📄 Art. 74</label>
+                            <input type="number" id="art74" name="art74" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="art22">📋 Art. 22</label>
+                            <input type="number" id="art22" name="art22" step="0.01" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dropPOS">💳 Drop POS</label>
+                            <input type="number" id="dropPOS" name="dropPOS" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="dropCash">💵 Drop Cash</label>
+                            <input type="number" id="dropCash" name="dropCash" step="0.01" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="monetePrecedenti">🪙 Monete Giorno Precedente</label>
+                            <input type="number" id="monetePrecedenti" name="monetePrecedenti" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="moneteAttuali">🪙 Monete Attuali</label>
+                            <input type="number" id="moneteAttuali" name="moneteAttuali" step="0.01" min="0">
+                        </div>
+                    </div>
+                    
+                    <div id="verificationResult" class="verification-result"></div>
+                    <div id="articoliVerification" class="articoli-verification"></div>
+                    
+                    <div class="calculation-result">
+                        <strong>💰 Totale Contanti in Cassa: <span id="totaleContanti">€0.00</span></strong>
+                    </div>
+                    
+                    <div id="fondoCassaResult" class="fondo-cassa-result">
+                        <div class="formula">Fondo Cassa = Contanti in Cassa - Scontrinato Contanti - Drop Cash + Differenza Monete - 100</div>
+                        <div class="result-value">€0.00</div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" id="verificaCompleta" class="btn btn-secondary">🔍 Verifica Completa</button>
+                        <button type="button" id="salvaChiusura" class="btn btn-primary">💾 Salva Chiusura</button>
+                        <button type="button" id="esportaReport" class="btn btn-success">📄 Esporta Report</button>
+                    </div>
+                </form>
+                
+                <div class="status-indicator">
+                    <div class="status-dot ok"></div>
+                    <div class="status-text">Sistema pronto</div>
+                </div>
+            </section>
+
+            <!-- Fatture Section -->
+            <section id="fatture-section" class="main-section">
+                <h2>📑 Gestione Fatture</h2>
+                
+                <div class="fornitori-section">
+                    <h3>👥 Gestione Fornitori</h3>
+                    <div class="fornitori-controls">
+                        <input type="text" id="nuovoFornitore" placeholder="Nome fornitore">
+                        <button id="aggiungiFornitore" class="btn btn-primary">➕ Aggiungi</button>
+                    </div>
+                    <div class="fornitori-list" id="fornitoriList">
+                        <!-- Fornitori caricati dinamicamente -->
+                    </div>
+                </div>
+
+                <form id="fatturaForm" class="main-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fatturaFornitore">🏢 Fornitore</label>
+                            <select id="fatturaFornitore" name="fornitore" required>
+                                <option value="">Seleziona fornitore...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="fatturaImporto">💰 Importo</label>
+                            <input type="number" id="fatturaImporto" name="importo" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fatturaDescrizione">📝 Descrizione</label>
+                            <input type="text" id="fatturaDescrizione" name="descrizione">
+                        </div>
+                        <div class="form-group">
+                            <label for="fatturaDataFattura">📅 Data Fattura</label>
+                            <input type="date" id="fatturaDataFattura" name="dataFattura" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fatturaScadenza">⏰ Scadenza</label>
+                            <input type="date" id="fatturaScadenza" name="scadenza" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="fatturaModalitaPagamento">💳 Modalità Pagamento</label>
+                            <select id="fatturaModalitaPagamento" name="modalitaPagamento">
+                                <option value="Bonifico">💸 Bonifico</option>
+                                <option value="Contanti">💵 Contanti</option>
+                                <option value="Assegno">📝 Assegno</option>
+                                <option value="Carta di Credito">💳 Carta di Credito</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fatturaStato">📊 Stato</label>
+                            <select id="fatturaStato" name="stato">
+                                <option value="da pagare">⏳ Da Pagare</option>
+                                <option value="pagata">✅ Pagata</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">💾 Salva Fattura</button>
+                        <button type="button" id="resetFatturaForm" class="btn btn-secondary">🔄 Reset</button>
+                    </div>
+                </form>
+
+                <div class="fatture-filters">
+                    <h3>🔍 Filtri e Ricerca</h3>
+                    <div class="filter-row">
+                        <select id="filtroStato">
+                            <option value="">Tutti gli stati</option>
                             <option value="da pagare">Da Pagare</option>
                             <option value="pagata">Pagata</option>
                         </select>
-                    </div>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">💾 Salva Fattura</button>
-                    <button type="button" id="resetFatturaForm" class="btn btn-secondary">🔄 Reset</button>
-                </div>
-            </form>
-            <div class="fatture-filters">
-                <h3>🔍 Filtri e Ricerca</h3>
-                <div class="filter-row">
-                    <select id="filtroStato">
-                        <option value="">Tutti gli stati</option>
-                        <option value="da pagare">Da Pagare</option>
-                        <option value="pagata">Pagata</option>
-                    </select>
-                    <select id="filtroFornitore">
-                        <option value="">Tutti i fornitori</option>
-                    </select>
-                    <input type="text" id="filtroRicerca" placeholder="🔍 Cerca fattura...">
-                </div>
-            </div>
-            <div class="fatture-container">
-                <h3>📋 Elenco Fatture</h3>
-                <div id="fattureList" class="fatture-grid"></div>
-            </div>
-        </section>
-
-        <section id="ricorrenze-section" class="main-section">
-            <h2>🔁 Gestione Ricorrenze</h2>
-            <form id="ricorrenzaForm" class="ricorrenza-form">
-                <input type="hidden" id="ricorrenzaId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="tipoRicorrenza">Tipo</label>
-                        <select id="tipoRicorrenza" required>
-                            <option value="entrata">💰 Entrata</option>
-                            <option value="uscita">📤 Uscita</option>
+                        <select id="filtroFornitore">
+                            <option value="">Tutti i fornitori</option>
                         </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="nomeRicorrenza">Nome</label>
-                        <input type="text" id="nomeRicorrenza" placeholder="Nome della ricorrenza" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="importoRicorrenza">Importo</label>
-                        <input type="number" step="0.01" id="importoRicorrenza" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="frequenzaRicorrenza">Frequenza</label>
-                        <select id="frequenzaRicorrenza" required>
-                            <option value="settimanale">📅 Settimanale</option>
-                            <option value="mensile">🗓️ Mensile</option>
-                            <option value="annuale">📆 Annuale</option>
-                        </select>
+                        <input type="text" id="filtroRicerca" placeholder="Cerca per fornitore o descrizione...">
                     </div>
                 </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">💾 Salva Ricorrenza</button>
-                    <button type="button" id="resetRicorrenzaForm" class="btn btn-secondary">🔄 Reset</button>
-                </div>
-            </form>
-            <div class="ricorrenze-container">
-                <h3>📋 Elenco Ricorrenze</h3>
-                <div id="ricorrenzeList"></div>
-            </div>
-        </section>
 
-        <section id="calendario-section" class="main-section">
-            <div class="calendar-section">
-                <h2>📅 Calendario Chiusure e Eventi</h2>
-                <div class="calendar-controls">
-                    <button id="prevMonth">◀ Precedente</button>
-                    <span id="calendarMonth"></span>
-                    <button id="nextMonth">Successivo ▶</button>
-                    <button id="printClosure" title="Stampa">🖨️ Stampa</button>
-                    <button id="exportClosure" title="Esporta">📥 Esporta</button>
+                <div class="fatture-grid" id="fattureGrid">
+                    <div class="empty-state">📋 Elenco Fatture</div>
                 </div>
-                <div id="calendarGrid" class="calendar-grid"></div>
-                <div id="calendarDetails" class="calendar-details" style="display:none;">
-                    <h3>📊 Dettagli Chiusura</h3>
-                    <pre id="calendarDetailsContent"></pre>
-                    <div class="calendar-actions">
-                        <button onclick="window.print()">🖨️ Stampa</button>
-                        <button onclick="window.calendarChiusure.exportClosure()">📥 Esporta</button>
+            </section>
+
+            <!-- Ricorrenze Section -->
+            <section id="ricorrenze-section" class="main-section">
+                <h2>🔁 Gestione Ricorrenze</h2>
+                
+                <form id="ricorrenzaForm" class="main-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ricorrenzaTipo">📊 Tipo</label>
+                            <select id="ricorrenzaTipo" name="tipo" required>
+                                <option value="entrata">💰 Entrata</option>
+                                <option value="uscita">📤 Uscita</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="ricorrenzaNome">📝 Nome</label>
+                            <input type="text" id="ricorrenzaNome" name="nome" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ricorrenzaImporto">💰 Importo</label>
+                            <input type="number" id="ricorrenzaImporto" name="importo" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="ricorrenzaFrequenza">⏰ Frequenza</label>
+                            <select id="ricorrenzaFrequenza" name="frequenza" required>
+                                <option value="settimanale">📅 Settimanale</option>
+                                <option value="mensile">🗓️ Mensile</option>
+                                <option value="annuale">📆 Annuale</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">💾 Salva Ricorrenza</button>
+                        <button type="button" id="resetRicorrenzaForm" class="btn btn-secondary">🔄 Reset</button>
+                    </div>
+                </form>
+
+                <div class="ricorrenze-list" id="ricorrenzeList">
+                    <div class="empty-state">📋 Elenco Ricorrenze</div>
+                </div>
+            </section>
+
+            <!-- Calendario Section -->
+            <section id="calendario-section" class="main-section">
+                <div class="calendar-section">
+                    <h2>📅 Calendario Chiusure e Eventi</h2>
+                    
+                    <div class="calendar-controls">
+                        <button id="prevMonth">◀ Precedente</button>
+                        <div id="calendarMonth">Mese Anno</div>
+                        <button id="nextMonth">Successivo ▶</button>
+                    </div>
+                    
+                    <div class="calendar-grid" id="calendarGrid">
+                        <!-- Calendario generato dinamicamente -->
+                    </div>
+                    
+                    <div class="calendar-details" id="calendarDetails">
+                        <h3>📊 Dettagli Chiusura</h3>
+                        <p style="text-align: center; color: #6c757d; font-style: italic;">
+                            Seleziona una data per visualizzare i dettagli
+                        </p>
+                        <div style="text-align: center; margin-top: 20px;">
+                            <button onclick="window.print()">🖨️ Stampa</button>
+                            <button onclick="exportData()">📥 Esporta</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
+        </main>
     </div>
 
-    <div id="modal" class="modal">
+    <!-- Modal per messaggi -->
+    <div id="chiusuraModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-body">
+                <!-- Contenuto dinamico -->
+            </div>
         </div>
     </div>
 
+    <!-- Chart.js per i grafici -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+    // Configurazione Supabase globale
+    const { createClient } = supabase;
+    const supabaseUrl = 'https://fodowfardgribthpgxxs.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    </script>
+
+    <!-- Il tuo script principale -->
     <script src="script.js"></script>
 </body>
 </html>
