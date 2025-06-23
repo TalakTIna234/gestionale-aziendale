@@ -1,4 +1,4 @@
-// Database functions per Supabase - AGGIUNTA SENZA MODIFICARE IL RESTO
+// Database functions per Supabase - AGGIUNTA
 class DatabaseManager {
     constructor() {
         this.isOnline = navigator.onLine;
@@ -115,7 +115,7 @@ class DatabaseManager {
 // Inizializza il database manager
 const dbManager = new DatabaseManager();
 
-// TUTTO IL TUO CODICE ORIGINALE COPIATO ESATTAMENTE COME È:
+// POI TUTTO IL TUO CODICE ORIGINALE QUI SOTTO:
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.onclick = function() {
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
