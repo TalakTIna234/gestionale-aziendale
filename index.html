@@ -3,27 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Aziendale Avanzata</title>
+    <title>Gestionale Pro - Sistema Aziendale Avanzato</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 </head>
 <body>
     <div class="container">
         <header class="modern-header">
             <div class="header-container">
                 <div class="header-left">
-                    <h1>GESTIONALE</h1>
+                    <h1>🏪 Gestionale Pro</h1>
                     <div class="header-subtitle">Sistema Aziendale Avanzato</div>
                 </div>
                 <div class="header-center">
                     <div class="clock-container">
-                        <div class="modern-time" id="modernTime">00:00:00</div>
-                        <div class="modern-date" id="modernDate">Loading...</div>
+                        <div id="modernTime" class="modern-time"></div>
+                        <div id="modernDate" class="modern-date"></div>
                     </div>
                     <div class="weather-badge">
-                        <span>🌤️</span>
-                        <span>Ragusa, IT</span>
+                        <span>☀️</span>
+                        <span>22°C Palermo</span>
                     </div>
                 </div>
                 <div class="header-right">
@@ -32,36 +33,25 @@
                         <div class="stats-value" id="todayRevenue">€0</div>
                     </div>
                     <div class="header-actions">
-                        <button class="action-btn" onclick="backupData()" title="Backup Dati">
-                            💾
-                        </button>
-                        <button class="action-btn" onclick="toggleNotifications()" title="Notifiche">
-                            🔔
-                            <div class="notification-dot"></div>
-                        </button>
-                        <button class="action-btn" onclick="toggleDarkMode()" title="Modalità Scura">
-                            🌙
-                        </button>
-                        <button class="action-btn" onclick="openSettings()" title="Impostazioni">
-                            ⚙️
-                        </button>
+                        <button class="action-btn" title="Backup" onclick="backupData()">💾</button>
+                        <button class="action-btn" title="Notifiche" onclick="toggleNotifications()">🔔<span class="notification-dot"></span></button>
+                        <button class="action-btn" title="Modalità Scura" onclick="toggleDarkMode()">🌙</button>
+                        <button class="action-btn" title="Impostazioni" onclick="openSettings()">⚙️</button>
                     </div>
                 </div>
             </div>
         </header>
 
         <nav class="main-nav">
-            <button class="nav-btn active" data-section="dashboard">📊 Dashboard</button>
-            <button class="nav-btn" data-section="chiusura">💵 Chiusura Cassa</button>
-            <button class="nav-btn" data-section="fatture">📄 Fatture</button>
-            <button class="nav-btn" data-section="ricorrenze">🔁 Ricorrenze</button>
-            <button class="nav-btn" data-section="calendario">📅 Calendario</button>
+            <button class="nav-btn active" data-section="dashboard">Dashboard</button>
+            <button class="nav-btn" data-section="cassa">Chiusura Cassa</button>
+            <button class="nav-btn" data-section="fatture">Fatture</button>
+            <button class="nav-btn" data-section="ricorrenze">Ricorrenze</button>
+            <button class="nav-btn" data-section="calendario">Calendario</button>
         </nav>
 
-        <!-- Dashboard Section -->
         <section id="dashboard-section" class="main-section active">
             <h2>📊 Dashboard Aziendale Avanzata</h2>
-            
             <div class="dashboard-filters">
                 <div class="filter-group">
                     <label>Periodo di Analisi:</label>
@@ -81,16 +71,15 @@
                         <option value="2026">2026</option>
                     </select>
                 </div>
-                <button id="refreshDashboard">🔄 Aggiorna</button>
+                <button id="refreshDashboard" class="btn btn-primary">🔄 Aggiorna</button>
             </div>
-
             <div class="kpi-grid">
                 <div class="kpi-card revenue">
                     <div class="kpi-icon">💰</div>
                     <div class="kpi-content">
                         <h3>Ricavi Totali</h3>
                         <div class="kpi-value" id="totalRevenue">€0.00</div>
-                        <div class="kpi-change">+0%</div>
+                        <div class="kpi-change" id="revenueChange">+0%</div>
                     </div>
                 </div>
                 <div class="kpi-card expenses">
@@ -98,7 +87,7 @@
                     <div class="kpi-content">
                         <h3>Spese Totali</h3>
                         <div class="kpi-value" id="totalExpenses">€0.00</div>
-                        <div class="kpi-change">+0%</div>
+                        <div class="kpi-change" id="expensesChange">+0%</div>
                     </div>
                 </div>
                 <div class="kpi-card profit">
@@ -106,7 +95,7 @@
                     <div class="kpi-content">
                         <h3>Utile Netto</h3>
                         <div class="kpi-value" id="netProfit">€0.00</div>
-                        <div class="kpi-change">+0%</div>
+                        <div class="kpi-change" id="profitChange">+0%</div>
                     </div>
                 </div>
                 <div class="kpi-card vat">
@@ -114,11 +103,10 @@
                     <div class="kpi-content">
                         <h3>IVA da Versare</h3>
                         <div class="kpi-value" id="vatToPay">€0.00</div>
-                        <div class="kpi-change">+0%</div>
+                        <div class="kpi-change" id="vatChange">+0%</div>
                     </div>
                 </div>
             </div>
-
             <div class="charts-grid">
                 <div class="chart-container">
                     <h3>📊 Andamento Mensile</h3>
@@ -137,7 +125,6 @@
                     <canvas id="vatTrendChart"></canvas>
                 </div>
             </div>
-
             <div class="dashboard-sections">
                 <div class="dashboard-section">
                     <h3>💰 Analisi Entrate</h3>
@@ -155,16 +142,15 @@
                         <div class="metric-row">
                             <div class="metric">
                                 <span class="metric-label">Media Giornaliera:</span>
-                                <span class="metric-value">€0.00</span>
+                                <span class="metric-value" id="dailyAverage">€0.00</span>
                             </div>
                             <div class="metric">
                                 <span class="metric-label">Crescita vs Periodo Prec.:</span>
-                                <span class="metric-value">+0%</span>
+                                <span class="metric-value" id="revenueGrowth">+0%</span>
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <div class="dashboard-section">
                     <h3>📤 Analisi Spese</h3>
                     <div class="section-content">
@@ -190,7 +176,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="dashboard-section">
                     <h3>🏛️ Situazione Fiscale</h3>
                     <div class="section-content">
@@ -211,12 +196,11 @@
                             </div>
                             <div class="metric">
                                 <span class="metric-label">Prossima Scadenza:</span>
-                                <span class="metric-value">16/07/2025</span>
+                                <span class="metric-value" id="nextVatDeadline">16/07/2025</span>
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <div class="dashboard-section">
                     <h3>🔮 Previsioni e Obiettivi</h3>
                     <div class="section-content">
@@ -236,162 +220,141 @@
                         <div class="metric-row">
                             <div class="metric">
                                 <span class="metric-label">Previsione Fine Mese:</span>
-                                <span class="metric-value">€0.00</span>
+                                <span class="metric-value" id="monthEndForecast">€0.00</span>
                             </div>
                             <div class="metric">
                                 <span class="metric-label">Giorni Rimanenti:</span>
-                                <span class="metric-value">0</span>
+                                <span class="metric-value" id="daysRemaining">0</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <div class="alerts-section">
                 <h3>🚨 Alert e Notifiche</h3>
-                <div class="alerts-container" id="alertsContainer">
-                    <!-- Gli alert verranno generati dinamicamente -->
-                </div>
+                <div id="alertsContainer" class="alerts-container"></div>
             </div>
         </section>
 
-        <!-- Chiusura Cassa Section -->
-        <section id="chiusura-section" class="main-section">
+        <section id="cassa-section" class="main-section">
             <h2>💵 Chiusura Cassa</h2>
-            
             <div class="cassa-calendar-section">
-                <h3>📅 Calendario Chiusure</h3>
+                <h3>Calendario Chiusure</h3>
                 <div class="cassa-calendar-controls">
-                    <button onclick="window.cassaCalendar.previousMonth()">◀ Precedente</button>
-                    <div id="cassaCalendarMonth">Caricamento...</div>
-                    <button onclick="window.cassaCalendar.nextMonth()">Successivo ▶</button>
+                    <button id="cassaPrevMonth">&lt;</button>
+                    <span id="cassaCalendarMonth"></span>
+                    <button id="cassaNextMonth">&gt;</button>
                 </div>
-                <div class="cassa-calendar-grid" id="cassaCalendarGrid">
-                    <!-- Il calendario verrà generato dinamicamente -->
-                </div>
-                <div class="selected-date-info" id="selectedDateInfo">
-                    Seleziona una data per vedere i dettagli
-                </div>
+                <div id="cassaCalendarGrid" class="cassa-calendar-grid"></div>
+                <div id="selectedDateDisplay" class="selected-date-info"></div>
             </div>
-
-            <div class="main-form">
+            <form id="chiusuraCassaForm" class="main-form">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Scontrinato Totale</label>
-                        <input type="number" id="scontrinatoTotale" step="0.01" placeholder="0.00">
+                        <label for="scontrinatoTotale">Scontrinato Totale</label>
+                        <input type="number" step="0.01" id="scontrinatoTotale" required>
                     </div>
                     <div class="form-group">
-                        <label>Scontrinato Contanti</label>
-                        <input type="number" id="scontrinatoContanti" step="0.01" placeholder="0.00">
+                        <label for="scontrinatoContanti">Scontrinato Contanti</label>
+                        <input type="number" step="0.01" id="scontrinatoContanti" required>
                     </div>
                     <div class="form-group">
-                        <label>Scontrinato POS</label>
-                        <input type="number" id="scontrinatoPos" step="0.01" placeholder="0.00">
+                        <label for="scontrinatoPos">Scontrinato POS</label>
+                        <input type="number" step="0.01" id="scontrinatoPos" required>
                     </div>
                 </div>
-                
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Art. 74</label>
-                        <input type="number" id="art74" step="0.01" placeholder="0.00">
+                        <label for="art74">Art. 74</label>
+                        <input type="number" step="0.01" id="art74">
                     </div>
                     <div class="form-group">
-                        <label>Art. 22</label>
-                        <input type="number" id="art22" step="0.01" placeholder="0.00">
+                        <label for="art22">Art. 22</label>
+                        <input type="number" step="0.01" id="art22">
                     </div>
                 </div>
-                
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Drop POS</label>
-                        <input type="number" id="dropPos" step="0.01" placeholder="0.00">
+                        <label for="dropPos">Drop POS</label>
+                        <input type="number" step="0.01" id="dropPos">
                     </div>
                     <div class="form-group">
-                        <label>Drop Cash</label>
-                        <input type="number" id="dropCash" step="0.01" placeholder="0.00">
+                        <label for="dropCash">Drop Cash</label>
+                        <input type="number" step="0.01" id="dropCash">
                     </div>
                 </div>
-                
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Monete Giorno Precedente</label>
-                        <input type="number" id="moneteGiornoPrecedente" step="0.01" placeholder="0.00">
+                        <label for="moneteGiornoPrecedente">Monete Giorno Precedente</label>
+                        <input type="number" step="0.01" id="moneteGiornoPrecedente">
                     </div>
                     <div class="form-group">
-                        <label>Monete Attuali</label>
-                        <input type="number" id="moneteAttuali" step="0.01" placeholder="0.00">
+                        <label for="moneteAttuali">Monete Attuali</label>
+                        <input type="number" step="0.01" id="moneteAttuali">
                     </div>
                 </div>
-                
-                <div class="calculation-result">
-                    <strong>Totale Contanti in Cassa</strong>
-                    <div id="totaleContantiCassa">€0.00</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="totaleContantiCassa">Totale Contanti in Cassa</label>
+                        <input type="number" step="0.01" id="totaleContantiCassa">
+                    </div>
                 </div>
-                
+                <div id="verificationResult" class="verification-result"></div>
+                <div id="articoliVerification" class="articoli-verification"></div>
+                <div id="differenzaMonete" class="calculation-result"></div>
                 <div class="fondo-cassa-result">
-                    <div class="formula">
-                        Fondo Cassa = Contanti in Cassa - Scontrinato Contanti - Drop Cash + Differenza Monete - 100
-                    </div>
-                    <div class="result-value" id="fondoCassaResult">€0.00</div>
-                    <div class="result-interpretation" id="fondoCassaInterpretation"></div>
+                    <div class="formula">Fondo Cassa = Contanti in Cassa - Scontrinato Contanti - Drop Cash + Differenza Monete - 100</div>
+                    <div id="fondoCassaResult" class="result-value">€0.00</div>
+                    <div id="fondoCassaInterpretation" class="result-interpretation"></div>
                 </div>
-                
-                <div class="verification-result" id="verificationResult"></div>
-                <div class="articoli-verification" id="articoliVerification"></div>
-                
                 <div class="form-actions">
-                    <button class="btn btn-primary" onclick="window.chiusuraCassaSystem.verificaCompleta()">🔍 Verifica Completa</button>
-                    <button class="btn btn-success" onclick="window.chiusuraCassaSystem.salvaChiusura()">💾 Salva Chiusura</button>
-                    <button class="btn btn-secondary" onclick="window.chiusuraCassaSystem.esportaReport()">📄 Esporta Report</button>
+                    <button type="button" id="verificaCompleta" class="btn btn-primary">🔍 Verifica Completa</button>
+                    <button type="submit" id="salvaBtn" class="btn btn-success">💾 Salva Chiusura</button>
+                    <button type="button" id="esportaBtn" class="btn btn-secondary">📄 Esporta Report</button>
                 </div>
-            </div>
+            </form>
         </section>
 
-        <!-- Fatture Section -->
         <section id="fatture-section" class="main-section">
             <h2>📑 Gestione Fatture</h2>
-            
             <div class="fornitori-section">
                 <h3>👥 Gestione Fornitori</h3>
                 <div class="fornitori-controls">
-                    <input type="text" id="nuovoFornitore" placeholder="Nome nuovo fornitore">
-                    <button class="btn btn-primary" id="aggiungiFornitore">➕ Aggiungi</button>
+                    <input type="text" id="nuovoFornitore" placeholder="Aggiungi nuovo fornitore">
+                    <button id="aggiungiFornitore" class="btn btn-success">➕ Aggiungi</button>
                 </div>
-                <div class="fornitori-list" id="fornitoriList">
-                    <!-- I fornitori verranno caricati dinamicamente -->
-                </div>
+                <div id="fornitoriList" class="fornitori-list"></div>
             </div>
-
-            <form class="main-form" id="fatturaForm">
+            <form id="fatturaForm" class="fattura-form">
+                <input type="hidden" id="fatturaId">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Fornitore</label>
+                        <label for="fornitore">Fornitore</label>
                         <select id="fornitore" required>
                             <option value="">Seleziona fornitore...</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Importo</label>
-                        <input type="number" id="importo" step="0.01" required>
+                        <label for="importoFattura">Importo</label>
+                        <input type="number" step="0.01" id="importoFattura" required>
                     </div>
                     <div class="form-group">
-                        <label>Descrizione</label>
-                        <input type="text" id="descrizione" required>
+                        <label for="descrizioneFattura">Descrizione</label>
+                        <input type="text" id="descrizioneFattura" placeholder="Descrizione fattura">
                     </div>
                 </div>
-                
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Data Fattura</label>
+                        <label for="dataFattura">Data Fattura</label>
                         <input type="date" id="dataFattura" required>
                     </div>
                     <div class="form-group">
-                        <label>Scadenza</label>
-                        <input type="date" id="scadenza" required>
+                        <label for="scadenzaFattura">Scadenza</label>
+                        <input type="date" id="scadenzaFattura" required>
                     </div>
                     <div class="form-group">
-                        <label>Modalità Pagamento</label>
-                        <select id="modalitaPagamento" required>
+                        <label for="modalitaPagamento">Modalità Pagamento</label>
+                        <select id="modalitaPagamento">
                             <option value="bonifico">Bonifico</option>
                             <option value="contanti">Contanti</option>
                             <option value="assegno">Assegno</option>
@@ -399,20 +362,18 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Stato</label>
-                        <select id="stato" required>
+                        <label for="statoFattura">Stato</label>
+                        <select id="statoFattura">
                             <option value="da pagare">Da Pagare</option>
                             <option value="pagata">Pagata</option>
                         </select>
                     </div>
                 </div>
-                
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">💾 Salva Fattura</button>
-                    <button type="button" class="btn btn-secondary" id="resetFatturaForm">🔄 Reset</button>
+                    <button type="button" id="resetFatturaForm" class="btn btn-secondary">🔄 Reset</button>
                 </div>
             </form>
-
             <div class="fatture-filters">
                 <h3>🔍 Filtri e Ricerca</h3>
                 <div class="filter-row">
@@ -424,41 +385,37 @@
                     <select id="filtroFornitore">
                         <option value="">Tutti i fornitori</option>
                     </select>
-                    <input type="text" id="filtroRicerca" placeholder="Cerca per descrizione...">
+                    <input type="text" id="filtroRicerca" placeholder="🔍 Cerca fattura...">
                 </div>
             </div>
-
-            <div id="fattureContainer">
+            <div class="fatture-container">
                 <h3>📋 Elenco Fatture</h3>
-                <div id="fattureList">
-                    <!-- Le fatture verranno caricate dinamicamente -->
-                </div>
+                <div id="fattureList" class="fatture-grid"></div>
             </div>
         </section>
 
-        <!-- Ricorrenze Section -->
         <section id="ricorrenze-section" class="main-section">
             <h2>🔁 Gestione Ricorrenze</h2>
-            
-            <form class="main-form" id="ricorrenzaForm">
+            <form id="ricorrenzaForm" class="ricorrenza-form">
+                <input type="hidden" id="ricorrenzaId">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Tipo</label>
+                        <label for="tipoRicorrenza">Tipo</label>
                         <select id="tipoRicorrenza" required>
                             <option value="entrata">💰 Entrata</option>
                             <option value="uscita">📤 Uscita</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Nome</label>
-                        <input type="text" id="nomeRicorrenza" required>
+                        <label for="nomeRicorrenza">Nome</label>
+                        <input type="text" id="nomeRicorrenza" placeholder="Nome della ricorrenza" required>
                     </div>
                     <div class="form-group">
-                        <label>Importo</label>
-                        <input type="number" id="importoRicorrenza" step="0.01" required>
+                        <label for="importoRicorrenza">Importo</label>
+                        <input type="number" step="0.01" id="importoRicorrenza" required>
                     </div>
                     <div class="form-group">
-                        <label>Frequenza</label>
+                        <label for="frequenzaRicorrenza">Frequenza</label>
                         <select id="frequenzaRicorrenza" required>
                             <option value="settimanale">📅 Settimanale</option>
                             <option value="mensile">🗓️ Mensile</option>
@@ -466,48 +423,41 @@
                         </select>
                     </div>
                 </div>
-                
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">💾 Salva Ricorrenza</button>
-                    <button type="button" class="btn btn-secondary" id="resetRicorrenzaForm">🔄 Reset</button>
+                    <button type="button" id="resetRicorrenzaForm" class="btn btn-secondary">🔄 Reset</button>
                 </div>
             </form>
-
-            <div id="ricorrenzeContainer">
+            <div class="ricorrenze-container">
                 <h3>📋 Elenco Ricorrenze</h3>
-                <div id="ricorrenzeList">
-                    <!-- Le ricorrenze verranno caricate dinamicamente -->
-                </div>
+                <div id="ricorrenzeList"></div>
             </div>
         </section>
 
-        <!-- Calendario Section -->
         <section id="calendario-section" class="main-section">
             <div class="calendar-section">
                 <h2>📅 Calendario Chiusure e Eventi</h2>
-                
                 <div class="calendar-controls">
-                    <button onclick="window.calendarChiusure.previousMonth()">◀ Precedente</button>
-                    <div id="calendarMonth">Caricamento...</div>
-                    <button onclick="window.calendarChiusure.nextMonth()">Successivo ▶</button>
+                    <button id="prevMonth">◀ Precedente</button>
+                    <span id="calendarMonth"></span>
+                    <button id="nextMonth">Successivo ▶</button>
+                    <button id="printClosure" title="Stampa">🖨️ Stampa</button>
+                    <button id="exportClosure" title="Esporta">📥 Esporta</button>
                 </div>
-                
-                <div class="calendar-grid" id="calendarGrid">
-                    <!-- Il calendario verrà generato dinamicamente -->
-                </div>
-                
-                <div class="calendar-details" id="calendarDetails" style="display: none;">
+                <div id="calendarGrid" class="calendar-grid"></div>
+                <div id="calendarDetails" class="calendar-details" style="display:none;">
                     <h3>📊 Dettagli Chiusura</h3>
-                    <pre id="detailsContent"></pre>
-                    <button onclick="window.calendarChiusure.printDetails()">🖨️ Stampa</button>
-                    <button onclick="window.calendarChiusure.exportDetails()">📥 Esporta</button>
+                    <pre id="calendarDetailsContent"></pre>
+                    <div class="calendar-actions">
+                        <button onclick="window.print()">🖨️ Stampa</button>
+                        <button onclick="window.calendarChiusure.exportClosure()">📥 Esporta</button>
+                    </div>
                 </div>
             </div>
         </section>
     </div>
 
-    <!-- Modal per messaggi -->
-    <div id="messageModal" class="modal">
+    <div id="modal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
             <div class="modal-body" id="modalBody"></div>
@@ -515,16 +465,19 @@
     </div>
 
     <script>
-        // Configurazione Supabase - SOSTITUISCI CON I TUOI VALORI
-        const SUPABASE_URL = 'https://fodowfardgribthpgxxs.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk';
-        
-        // Inizializza Supabase
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        // Variabile globale per indicare se usare Supabase o localStorage
-        const USE_SUPABASE = SUPABASE_URL !== 'https://your-project.supabase.co';
-    </script>
+    // Configurazione Supabase con i tuoi dati
+    const SUPABASE_URL = 'https://fodowfardgribthpgxxs.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk';
+    
+    // Inizializza Supabase
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // Variabile globale per indicare se usare Supabase o localStorage
+    const USE_SUPABASE = true;
+</script>
+<script src="script.js"></script>
+
     <script src="script.js"></script>
+
 </body>
 </html>
