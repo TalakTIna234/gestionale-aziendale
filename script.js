@@ -1,4 +1,4 @@
-// Database functions per Supabase - AGGIUNTA
+// Database functions per Supabase - AGGIUNTA SENZA MODIFICARE IL RESTO
 class DatabaseManager {
     constructor() {
         this.isOnline = navigator.onLine;
@@ -115,7 +115,7 @@ class DatabaseManager {
 // Inizializza il database manager
 const dbManager = new DatabaseManager();
 
-// POI TUTTO IL TUO CODICE ORIGINALE QUI SOTTO:
+// TUTTO IL TUO CODICE ORIGINALE MODIFICATO PER SUPABASE:
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.onclick = function() {
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -141,15 +141,21 @@ function updateModernDateTime() {
     updateTodayRevenue();
 }
 
-function updateTodayRevenue() {
+async function updateTodayRevenue() {
     const today = new Date().toISOString().split('T')[0];
-    const todayData = localStorage.getItem(`chiusura_${today}`);
     const revenueEl = document.getElementById('todayRevenue');
+    
     if (revenueEl) {
-        if (todayData) {
-            const data = JSON.parse(todayData);
-            revenueEl.textContent = `€${(data.scontrinatoTotale || 0).toFixed(0)}`;
-        } else {
+        try {
+            const chiusure = await dbManager.loadData('chiusure_cassa');
+            const todayData = chiusure.find(c => c.data === today);
+            
+            if (todayData) {
+                revenueEl.textContent = `€${(todayData.scontrinatoTotale || 0).toFixed(0)}`;
+            } else {
+                revenueEl.textContent = '€0';
+            }
+        } catch (error) {
             revenueEl.textContent = '€0';
         }
     }
@@ -210,11 +216,11 @@ function getPeriodoDateRange(period, year = new Date().getFullYear()) {
     return {start, end};
 }
 
-function aggiornaDashboardAvanzata() {
+async function aggiornaDashboardAvanzata() {
     const period = document.getElementById('dashboardPeriod')?.value || 'month';
     const year = parseInt(document.getElementById('dashboardYear')?.value || new Date().getFullYear());
     const {start, end} = getPeriodoDateRange(period, year);
-    const datiFinanziari = raccogliDatiFinanziari(start, end);
+    const datiFinanziari = await raccogliDatiFinanziari(start, end);
     aggiornaKPI(datiFinanziari);
     aggiornaSezioniDettagliate(datiFinanziari);
     aggiornaGrafici(datiFinanziari, period, year);
@@ -222,41 +228,51 @@ function aggiornaDashboardAvanzata() {
     calcolaPrevisioni(datiFinanziari);
 }
 
-function raccogliDatiFinanziari(start, end) {
-    let chiusure = [];
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('chiusura_')) {
-            try {
-                const data = JSON.parse(localStorage.getItem(key));
-                const d = new Date(data.data);
-                if (d >= start && d <= end) chiusure.push(data);
-            } catch (e) {}
-        }
+async function raccogliDatiFinanziari(start, end) {
+    try {
+        // Carica da Supabase invece di localStorage
+        const chiusure = await dbManager.loadData('chiusure_cassa');
+        const chiusureFiltrate = chiusure.filter(c => {
+            const d = new Date(c.data);
+            return d >= start && d <= end;
+        });
+
+        const fatture = await dbManager.loadData('fatture');
+        const fattureFiltrate = fatture.filter(f => {
+            const d = new Date(f.data);
+            return d >= start && d <= end;
+        });
+
+        const ricorrenze = await dbManager.loadData('ricorrenze');
+
+        const ricaviCassa = chiusureFiltrate.reduce((sum, c) => sum + (c.scontrinatoTotale || 0), 0);
+        const entrateRicorrenti = calcolaRicorrenze(ricorrenze, 'entrata', start, end);
+        const usciteRicorrenti = calcolaRicorrenze(ricorrenze, 'uscita', start, end);
+        const fatturepagate = fattureFiltrate.filter(f => f.stato === 'pagata').reduce((sum, f) => sum + f.importo, 0);
+        const fatturePendenti = fattureFiltrate.filter(f => f.stato === 'da pagare').reduce((sum, f) => sum + f.importo, 0);
+        const fattureScadute = fattureFiltrate.filter(f => {
+            const scadenza = new Date(f.scadenza);
+            return f.stato === 'da pagare' && scadenza < new Date();
+        }).reduce((sum, f) => sum + f.importo, 0);
+        const totaleEntrate = ricaviCassa + entrateRicorrenti;
+        const totaleUscite = fatturepagate + usciteRicorrenti;
+        const utileNetto = totaleEntrate - totaleUscite;
+        const ivaVendite = ricaviCassa * 0.22;
+        const ivaAcquisti = fatturepagate * 0.22;
+        const ivaNettaDaVersare = Math.max(0, ivaVendite - ivaAcquisti);
+        return {
+            chiusure: chiusureFiltrate, fatture: fattureFiltrate, ricorrenze, ricaviCassa, entrateRicorrenti, usciteRicorrenti,
+            fatturepagate, fatturePendenti, fattureScadute, totaleEntrate, totaleUscite,
+            utileNetto, ivaVendite, ivaAcquisti, ivaNettaDaVersare, start, end
+        };
+    } catch (error) {
+        console.error('Errore raccolta dati finanziari:', error);
+        return {
+            chiusure: [], fatture: [], ricorrenze: [], ricaviCassa: 0, entrateRicorrenti: 0, usciteRicorrenti: 0,
+            fatturepagate: 0, fatturePendenti: 0, fattureScadute: 0, totaleEntrate: 0, totaleUscite: 0,
+            utileNetto: 0, ivaVendite: 0, ivaAcquisti: 0, ivaNettaDaVersare: 0, start, end
+        };
     }
-    let fatture = JSON.parse(localStorage.getItem('fatture') || '[]');
-    fatture = fatture.filter(f => new Date(f.data) >= start && new Date(f.data) <= end);
-    let ricorrenze = JSON.parse(localStorage.getItem('ricorrenze') || '[]');
-    const ricaviCassa = chiusure.reduce((sum, c) => sum + (c.scontrinatoTotale || 0), 0);
-    const entrateRicorrenti = calcolaRicorrenze(ricorrenze, 'entrata', start, end);
-    const usciteRicorrenti = calcolaRicorrenze(ricorrenze, 'uscita', start, end);
-    const fatturepagate = fatture.filter(f => f.stato === 'pagata').reduce((sum, f) => sum + f.importo, 0);
-    const fatturePendenti = fatture.filter(f => f.stato === 'da pagare').reduce((sum, f) => sum + f.importo, 0);
-    const fattureScadute = fatture.filter(f => {
-        const scadenza = new Date(f.scadenza);
-        return f.stato === 'da pagare' && scadenza < new Date();
-    }).reduce((sum, f) => sum + f.importo, 0);
-    const totaleEntrate = ricaviCassa + entrateRicorrenti;
-    const totaleUscite = fatturepagate + usciteRicorrenti;
-    const utileNetto = totaleEntrate - totaleUscite;
-    const ivaVendite = ricaviCassa * 0.22;
-    const ivaAcquisti = fatturepagate * 0.22;
-    const ivaNettaDaVersare = Math.max(0, ivaVendite - ivaAcquisti);
-    return {
-        chiusure, fatture, ricorrenze, ricaviCassa, entrateRicorrenti, usciteRicorrenti,
-        fatturepagate, fatturePendenti, fattureScadute, totaleEntrate, totaleUscite,
-        utileNetto, ivaVendite, ivaAcquisti, ivaNettaDaVersare, start, end
-    };
 }
 
 function calcolaRicorrenze(ricorrenze, tipo, start, end) {
@@ -334,44 +350,46 @@ function creaGraficoAndamentoMensile(dati, year) {
     const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
     const entratePerMese = new Array(12).fill(0);
     const uscitePerMese = new Array(12).fill(0);
-    for (let mese = 0; mese < 12; mese++) {
+    
+    Promise.all(Array.from({length: 12}, async (_, mese) => {
         const inizioMese = new Date(year, mese, 1);
         const fineMese = new Date(year, mese + 1, 0);
-        const datiMese = raccogliDatiFinanziari(inizioMese, fineMese);
+        const datiMese = await raccogliDatiFinanziari(inizioMese, fineMese);
         entratePerMese[mese] = datiMese.totaleEntrate;
         uscitePerMese[mese] = datiMese.totaleUscite;
-    }
-    dashboardCharts.monthlyTrend = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: mesi,
-            datasets: [{
-                label: 'Entrate',
-                data: entratePerMese,
-                borderColor: '#28a745',
-                backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                tension: 0.4,
-                fill: true
-            }, {
-                label: 'Uscite',
-                data: uscitePerMese,
-                borderColor: '#dc3545',
-                backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'top' } },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { callback: function(value) { return '€' + value.toLocaleString(); } }
+    })).then(() => {
+        dashboardCharts.monthlyTrend = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: mesi,
+                datasets: [{
+                    label: 'Entrate',
+                    data: entratePerMese,
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }, {
+                    label: 'Uscite',
+                    data: uscitePerMese,
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: function(value) { return '€' + value.toLocaleString(); } }
+                    }
                 }
             }
-        }
+        });
     });
 }
 
@@ -429,39 +447,41 @@ function creaGraficoTrendIVA(dati, year) {
     if (!ctx || typeof Chart === 'undefined') return;
     const mesi = [];
     const ivaData = [];
-    for (let i = 5; i >= 0; i--) {
+    
+    Promise.all(Array.from({length: 6}, async (_, i) => {
         const data = new Date();
-        data.setMonth(data.getMonth() - i);
-        mesi.push(data.toLocaleDateString('it-IT', { month: 'short' }));
+        data.setMonth(data.getMonth() - (5 - i));
+        mesi[i] = data.toLocaleDateString('it-IT', { month: 'short' });
         const inizioMese = new Date(data.getFullYear(), data.getMonth(), 1);
         const fineMese = new Date(data.getFullYear(), data.getMonth() + 1, 0);
-        const datiMese = raccogliDatiFinanziari(inizioMese, fineMese);
-        ivaData.push(datiMese.ivaNettaDaVersare);
-    }
-    dashboardCharts.vatTrend = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: mesi,
-            datasets: [{
-                label: 'IVA da Versare',
-                data: ivaData,
-                borderColor: '#ffc107',
-                backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { callback: function(value) { return '€' + value.toLocaleString(); } }
+        const datiMese = await raccogliDatiFinanziari(inizioMese, fineMese);
+        ivaData[i] = datiMese.ivaNettaDaVersare;
+    })).then(() => {
+        dashboardCharts.vatTrend = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: mesi,
+                datasets: [{
+                    label: 'IVA da Versare',
+                    data: ivaData,
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: function(value) { return '€' + value.toLocaleString(); } }
+                    }
                 }
             }
-        }
+        });
     });
 }
 
@@ -508,220 +528,299 @@ function generaAlert(dati) {
         : '<div class="alert success"><span>✅</span><span>Tutto sotto controllo! Nessun alert da segnalare.</span></div>';
 }
 
-let fornitori = JSON.parse(localStorage.getItem('fornitori') || '["Fornitore Esempio"]');
-function caricaFornitori() {
-    const fornitoreSelect = document.getElementById('fornitore');
-    const filtroFornitore = document.getElementById('filtroFornitore');
-    const fornitoriList = document.getElementById('fornitoriList');
-    if (fornitoreSelect) {
-        fornitoreSelect.innerHTML = '<option value="">Seleziona fornitore...</option>';
-        fornitori.forEach(f => {
-            const option = document.createElement('option');
-            option.value = f;
-            option.textContent = f;
-            fornitoreSelect.appendChild(option);
-        });
-    }
-    if (filtroFornitore) {
-        filtroFornitore.innerHTML = '<option value="">Tutti i fornitori</option>';
-        fornitori.forEach(f => {
-            const option = document.createElement('option');
-            option.value = f;
-            option.textContent = f;
-            filtroFornitore.appendChild(option);
-        });
-    }
-    if (fornitoriList) {
-        fornitoriList.innerHTML = fornitori.map(f => `
-            <div class="fornitore-tag">
-                ${f}
-                <button class="remove-btn" onclick="rimuoviFornitore('${f}')">&times;</button>
-            </div>
-        `).join('');
-    }
-}
-function aggiungiFornitore() {
-    const input = document.getElementById('nuovoFornitore');
-    const nome = input.value.trim();
-    if (nome && !fornitori.includes(nome)) {
-        fornitori.push(nome);
-        localStorage.setItem('fornitori', JSON.stringify(fornitori));
-        caricaFornitori();
-        input.value = '';
-        showNotification('success', `Fornitore "${nome}" aggiunto con successo!`);
-    } else if (fornitori.includes(nome)) {
-        showNotification('warning', 'Fornitore già esistente!');
-    }
-}
-function rimuoviFornitore(nome) {
-    if (confirm(`Rimuovere il fornitore "${nome}"?`)) {
-        fornitori = fornitori.filter(f => f !== nome);
-        localStorage.setItem('fornitori', JSON.stringify(fornitori));
-        caricaFornitori();
-        mostraFatture();
-        showNotification('info', `Fornitore "${nome}" rimosso.`);
+// Funzioni per fornitori modificate per Supabase
+async function caricaFornitori() {
+    try {
+        const fornitori = await dbManager.loadData('fornitori');
+        const fornitoreSelect = document.getElementById('fornitore');
+        const filtroFornitore = document.getElementById('filtroFornitore');
+        const fornitoriList = document.getElementById('fornitoriList');
+        
+        if (fornitoreSelect) {
+            fornitoreSelect.innerHTML = '<option value="">Seleziona fornitore...</option>';
+            fornitori.forEach(f => {
+                const option = document.createElement('option');
+                option.value = f.nome;
+                option.textContent = f.nome;
+                fornitoreSelect.appendChild(option);
+            });
+        }
+        if (filtroFornitore) {
+            filtroFornitore.innerHTML = '<option value="">Tutti i fornitori</option>';
+            fornitori.forEach(f => {
+                const option = document.createElement('option');
+                option.value = f.nome;
+                option.textContent = f.nome;
+                filtroFornitore.appendChild(option);
+            });
+        }
+        if (fornitoriList) {
+            fornitoriList.innerHTML = fornitori.map(f => `
+                <div class="fornitore-tag">
+                    ${f.nome}
+                    <button class="remove-btn" onclick="rimuoviFornitore('${f.id}')">&times;</button>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Errore caricamento fornitori:', error);
     }
 }
 
-let fatture = JSON.parse(localStorage.getItem('fatture') || '[]');
+async function aggiungiFornitore() {
+    const input = document.getElementById('nuovoFornitore');
+    const nome = input.value.trim();
+    if (!nome) return;
+    
+    try {
+        const fornitori = await dbManager.loadData('fornitori');
+        const exists = fornitori.some(f => f.nome === nome);
+        
+        if (exists) {
+            showNotification('warning', 'Fornitore già esistente!');
+            return;
+        }
+        
+        await dbManager.saveData('fornitori', { nome: nome });
+        await caricaFornitori();
+        input.value = '';
+        showNotification('success', `Fornitore "${nome}" aggiunto con successo!`);
+    } catch (error) {
+        console.error('Errore aggiunta fornitore:', error);
+        showNotification('error', 'Errore nell\'aggiunta del fornitore');
+    }
+}
+
+async function rimuoviFornitore(id) {
+    if (!confirm('Rimuovere questo fornitore?')) return;
+    
+    try {
+        await dbManager.deleteData('fornitori', id);
+        await caricaFornitori();
+        await mostraFatture();
+        showNotification('info', 'Fornitore rimosso.');
+    } catch (error) {
+        console.error('Errore rimozione fornitore:', error);
+    }
+}
+
+// Funzioni per fatture modificate per Supabase
 let fatturaInModifica = null;
-function salvaFattura(e) {
+
+async function salvaFattura(e) {
     e.preventDefault();
-    const id = document.getElementById('fatturaId').value || Date.now();
+    const id = document.getElementById('fatturaId')?.value || null;
     const nuovaFattura = {
-        id,
         fornitore: document.getElementById('fornitore').value,
-        importo: parseFloat(document.getElementById('importoFattura').value),
-        descrizione: document.getElementById('descrizioneFattura').value,
+        importo: parseFloat(document.getElementById('importo').value),
+        descrizione: document.getElementById('descrizione').value,
         data: document.getElementById('dataFattura').value,
-        scadenza: document.getElementById('scadenzaFattura').value,
-        modalita: document.getElementById('modalitaPagamento').value,
-        stato: document.getElementById('statoFattura').value,
-        dataCreazione: fatturaInModifica ? fatturaInModifica.dataCreazione : new Date().toISOString()
+        scadenza: document.getElementById('scadenza').value,
+        modalitaPagamento: document.getElementById('modalitaPagamento').value,
+        stato: document.getElementById('stato').value
     };
-    const idx = fatture.findIndex(f => f.id == id);
-    if (idx > -1) {
-        fatture[idx] = nuovaFattura;
-        showNotification('success', 'Fattura aggiornata con successo!');
-    } else {
-        fatture.push(nuovaFattura);
-        showNotification('success', 'Fattura salvata con successo!');
-    }
-    localStorage.setItem('fatture', JSON.stringify(fatture));
-    mostraFatture();
-    resetFatturaForm();
-    if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
-        aggiornaDashboardAvanzata();
-    }
-}
-function modificaFattura(id) {
-    const fattura = fatture.find(f => f.id == id);
-    if (!fattura) return;
-    fatturaInModifica = fattura;
-    document.getElementById('fatturaId').value = fattura.id;
-    document.getElementById('fornitore').value = fattura.fornitore;
-    document.getElementById('importoFattura').value = fattura.importo;
-    document.getElementById('descrizioneFattura').value = fattura.descrizione;
-    document.getElementById('dataFattura').value = fattura.data;
-    document.getElementById('scadenzaFattura').value = fattura.scadenza;
-    document.getElementById('modalitaPagamento').value = fattura.modalita;
-    document.getElementById('statoFattura').value = fattura.stato;
-    document.getElementById('fatturaForm').scrollIntoView({ behavior: 'smooth' });
-    showNotification('info', 'Fattura caricata per la modifica');
-}
-function eliminaFattura(id) {
-    const fattura = fatture.find(f => f.id == id);
-    if (!fattura) return;
-    if (confirm(`Eliminare la fattura di ${fattura.fornitore} per €${fattura.importo.toFixed(2)}?`)) {
-        fatture = fatture.filter(f => f.id != id);
-        localStorage.setItem('fatture', JSON.stringify(fatture));
-        mostraFatture();
-        showNotification('info', 'Fattura eliminata');
+    
+    try {
+        if (id) {
+            await dbManager.saveData('fatture', nuovaFattura, id);
+            showNotification('success', 'Fattura aggiornata con successo!');
+        } else {
+            await dbManager.saveData('fatture', nuovaFattura);
+            showNotification('success', 'Fattura salvata con successo!');
+        }
+        
+        await mostraFatture();
+        resetFatturaForm();
         if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
             aggiornaDashboardAvanzata();
         }
+    } catch (error) {
+        console.error('Errore salvataggio fattura:', error);
+        showNotification('error', 'Errore nel salvataggio della fattura');
     }
 }
+
+async function modificaFattura(id) {
+    try {
+        const fatture = await dbManager.loadData('fatture');
+        const fattura = fatture.find(f => f.id == id);
+        if (!fattura) return;
+        
+        fatturaInModifica = fattura;
+        if (document.getElementById('fatturaId')) document.getElementById('fatturaId').value = fattura.id;
+        document.getElementById('fornitore').value = fattura.fornitore;
+        document.getElementById('importo').value = fattura.importo;
+        document.getElementById('descrizione').value = fattura.descrizione;
+        document.getElementById('dataFattura').value = fattura.data;
+        document.getElementById('scadenza').value = fattura.scadenza;
+        document.getElementById('modalitaPagamento').value = fattura.modalitaPagamento;
+        document.getElementById('stato').value = fattura.stato;
+        document.getElementById('fatturaForm').scrollIntoView({ behavior: 'smooth' });
+        showNotification('info', 'Fattura caricata per la modifica');
+    } catch (error) {
+        console.error('Errore modifica fattura:', error);
+    }
+}
+
+async function eliminaFattura(id) {
+    try {
+        const fatture = await dbManager.loadData('fatture');
+        const fattura = fatture.find(f => f.id == id);
+        if (!fattura) return;
+        
+        if (confirm(`Eliminare la fattura di ${fattura.fornitore} per €${fattura.importo.toFixed(2)}?`)) {
+            await dbManager.deleteData('fatture', id);
+            await mostraFatture();
+            showNotification('info', 'Fattura eliminata');
+            if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+                aggiornaDashboardAvanzata();
+            }
+        }
+    } catch (error) {
+        console.error('Errore eliminazione fattura:', error);
+    }
+}
+
 function resetFatturaForm() {
     document.getElementById('fatturaForm').reset();
-    document.getElementById('fatturaId').value = '';
+    if (document.getElementById('fatturaId')) document.getElementById('fatturaId').value = '';
     fatturaInModifica = null;
 }
 
-function mostraFatture() {
-    const list = document.getElementById('fattureList');
-    if (!list) return;
-    let fattureFiltered = [...fatture];
-    const filtroStato = document.getElementById('filtroStato')?.value;
-    const filtroFornitore = document.getElementById('filtroFornitore')?.value;
-    const filtroRicerca = document.getElementById('filtroRicerca')?.value.toLowerCase();
-    if (filtroStato) {
-        fattureFiltered = fattureFiltered.filter(f => f.stato === filtroStato);
-    }
-    if (filtroFornitore) {
-        fattureFiltered = fattureFiltered.filter(f => f.fornitore === filtroFornitore);
-    }
-    if (filtroRicerca) {
-        fattureFiltered = fattureFiltered.filter(f => 
-            f.descrizione.toLowerCase().includes(filtroRicerca) ||
-            f.fornitore.toLowerCase().includes(filtroRicerca)
-        );
-    }
-    if (fattureFiltered.length === 0) {
-        list.innerHTML = '<div class="empty-state">📄 Nessuna fattura trovata</div>';
-        return;
-    }
-    fattureFiltered.sort((a, b) => new Date(b.data) - new Date(a.data));
-    list.innerHTML = fattureFiltered.map(f => {
-        const dataScadenza = new Date(f.scadenza);
-        const oggi = new Date();
-        const isScaduta = dataScadenza < oggi && f.stato === 'da pagare';
-        const statusClass = f.stato === 'pagata' ? 'pagata' : (isScaduta ? 'scaduta' : 'da-pagare');
-        const cardClass = f.stato === 'pagata' ? 'pagata' : (isScaduta ? 'scaduta' : '');
-        return `
-            <div class="fattura-card ${cardClass}">
-                <div class="fattura-status ${statusClass}">
-                    ${f.stato === 'pagata' ? '✅ Pagata' : (isScaduta ? '🚨 Scaduta' : '⏳ Da Pagare')}
-                </div>
-                <div class="fattura-header">
-                    <div class="fattura-fornitore">${f.fornitore}</div>
-                    <div class="fattura-importo">€${f.importo.toFixed(2)}</div>
-                </div>
-                <div class="fattura-details">
-                    <div class="fattura-detail">
-                        <div class="fattura-detail-label">Descrizione</div>
-                        <div class="fattura-detail-value">${f.descrizione || 'N/A'}</div>
+async function mostraFatture() {
+    try {
+        const fatture = await dbManager.loadData('fatture');
+        const list = document.getElementById('fattureList');
+        if (!list) return;
+        
+        let fattureFiltered = [...fatture];
+        const filtroStato = document.getElementById('filtroStato')?.value;
+        const filtroFornitore = document.getElementById('filtroFornitore')?.value;
+        const filtroRicerca = document.getElementById('filtroRicerca')?.value.toLowerCase();
+        
+        if (filtroStato) {
+            fattureFiltered = fattureFiltered.filter(f => f.stato === filtroStato);
+        }
+        if (filtroFornitore) {
+            fattureFiltered = fattureFiltered.filter(f => f.fornitore === filtroFornitore);
+        }
+        if (filtroRicerca) {
+            fattureFiltered = fattureFiltered.filter(f => 
+                f.descrizione.toLowerCase().includes(filtroRicerca) ||
+                f.fornitore.toLowerCase().includes(filtroRicerca)
+            );
+        }
+        
+        if (fattureFiltered.length === 0) {
+            list.innerHTML = '<div class="empty-state">📄 Nessuna fattura trovata</div>';
+            return;
+        }
+        
+        fattureFiltered.sort((a, b) => new Date(b.data) - new Date(a.data));
+        list.innerHTML = fattureFiltered.map(f => {
+            const dataScadenza = new Date(f.scadenza);
+            const oggi = new Date();
+            const isScaduta = dataScadenza < oggi && f.stato === 'da pagare';
+            const statusClass = f.stato === 'pagata' ? 'pagata' : (isScaduta ? 'scaduta' : 'da-pagare');
+            const cardClass = f.stato === 'pagata' ? 'pagata' : (isScaduta ? 'scaduta' : '');
+            return `
+                <div class="fattura-card ${cardClass}">
+                    <div class="fattura-status ${statusClass}">
+                        ${f.stato === 'pagata' ? '✅ Pagata' : (isScaduta ? '🚨 Scaduta' : '⏳ Da Pagare')}
                     </div>
-                    <div class="fattura-detail">
-                        <div class="fattura-detail-label">Data Fattura</div>
-                        <div class="fattura-detail-value">${new Date(f.data).toLocaleDateString('it-IT')}</div>
+                    <div class="fattura-header">
+                        <div class="fattura-fornitore">${f.fornitore}</div>
+                        <div class="fattura-importo">€${f.importo.toFixed(2)}</div>
                     </div>
-                    <div class="fattura-detail">
-                        <div class="fattura-detail-label">Scadenza</div>
-                        <div class="fattura-detail-value">${new Date(f.scadenza).toLocaleDateString('it-IT')}</div>
+                    <div class="fattura-details">
+                        <div class="fattura-detail">
+                            <div class="fattura-detail-label">Descrizione</div>
+                            <div class="fattura-detail-value">${f.descrizione || 'N/A'}</div>
+                        </div>
+                        <div class="fattura-detail">
+                            <div class="fattura-detail-label">Data Fattura</div>
+                            <div class="fattura-detail-value">${new Date(f.data).toLocaleDateString('it-IT')}</div>
+                        </div>
+                        <div class="fattura-detail">
+                            <div class="fattura-detail-label">Scadenza</div>
+                            <div class="fattura-detail-value">${new Date(f.scadenza).toLocaleDateString('it-IT')}</div>
+                        </div>
+                        <div class="fattura-detail">
+                            <div class="fattura-detail-label">Pagamento</div>
+                            <div class="fattura-detail-value">${f.modalitaPagamento}</div>
+                        </div>
                     </div>
-                    <div class="fattura-detail">
-                        <div class="fattura-detail-label">Pagamento</div>
-                        <div class="fattura-detail-value">${f.modalita}</div>
+                    <div class="fattura-actions">
+                        <button class="btn-edit" onclick="modificaFattura('${f.id}')">✏️ Modifica</button>
+                        <button class="btn-delete" onclick="eliminaFattura('${f.id}')">🗑️ Elimina</button>
                     </div>
                 </div>
-                <div class="fattura-actions">
-                    <button class="btn-edit" onclick="modificaFattura(${f.id})">✏️ Modifica</button>
-                    <button class="btn-delete" onclick="eliminaFattura(${f.id})">🗑️ Elimina</button>
-                </div>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Errore visualizzazione fatture:', error);
+    }
 }
 
-let ricorrenze = JSON.parse(localStorage.getItem('ricorrenze') || '[]');
-function salvaRicorrenza(e) {
+// Funzioni per ricorrenze modificate per Supabase
+async function salvaRicorrenza(e) {
     e.preventDefault();
-    const id = document.getElementById('ricorrenzaId').value || Date.now();
+    const id = document.getElementById('ricorrenzaId')?.value || null;
     const nuovaRic = {
-        id,
         tipo: document.getElementById('tipoRicorrenza').value,
         nome: document.getElementById('nomeRicorrenza').value,
         importo: parseFloat(document.getElementById('importoRicorrenza').value),
         frequenza: document.getElementById('frequenzaRicorrenza').value
     };
-    const idx = ricorrenze.findIndex(r => r.id == id);
-    if (idx > -1) ricorrenze[idx] = nuovaRic; else ricorrenze.push(nuovaRic);
-    localStorage.setItem('ricorrenze', JSON.stringify(ricorrenze));
-    mostraRicorrenze();
-    e.target.reset();
-    if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
-        aggiornaDashboardAvanzata();
+    
+    try {
+        if (id) {
+            await dbManager.saveData('ricorrenze', nuovaRic, id);
+        } else {
+            await dbManager.saveData('ricorrenze', nuovaRic);
+        }
+        
+        await mostraRicorrenze();
+        e.target.reset();
+        if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+            aggiornaDashboardAvanzata();
+        }
+        showNotification('success', 'Ricorrenza salvata con successo!');
+    } catch (error) {
+        console.error('Errore salvataggio ricorrenza:', error);
+        showNotification('error', 'Errore nel salvataggio della ricorrenza');
     }
 }
-function mostraRicorrenze() {
-    const list = document.getElementById('ricorrenzeList');
-    if (list) {
-        list.innerHTML = ricorrenze.length
-            ? ricorrenze.map(r => `<div class="ricorrenza-item">
-                <b>${r.tipo == 'entrata' ? 'Entrata' : 'Uscita'}</b>: ${r.nome} - €${r.importo.toFixed(2)} (${r.frequenza})
-            </div>`).join('')
-            : '<em>Nessuna ricorrenza registrata</em>';
+
+async function mostraRicorrenze() {
+    try {
+        const ricorrenze = await dbManager.loadData('ricorrenze');
+        const list = document.getElementById('ricorrenzeList');
+        if (list) {
+            list.innerHTML = ricorrenze.length
+                ? ricorrenze.map(r => `<div class="ricorrenza-item">
+                    <b>${r.tipo == 'entrata' ? 'Entrata' : 'Uscita'}</b>: ${r.nome} - €${r.importo.toFixed(2)} (${r.frequenza})
+                    <button class="btn-delete" onclick="eliminaRicorrenza('${r.id}')" style="float: right; margin-left: 10px;">🗑️</button>
+                </div>`).join('')
+                : '<em>Nessuna ricorrenza registrata</em>';
+        }
+    } catch (error) {
+        console.error('Errore visualizzazione ricorrenze:', error);
+    }
+}
+
+async function eliminaRicorrenza(id) {
+    if (!confirm('Sei sicuro di voler eliminare questa ricorrenza?')) return;
+    
+    try {
+        await dbManager.deleteData('ricorrenze', id);
+        await mostraRicorrenze();
+        showNotification('success', 'Ricorrenza eliminata con successo!');
+        if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+            aggiornaDashboardAvanzata();
+        }
+    } catch (error) {
+        console.error('Errore eliminazione ricorrenza:', error);
     }
 }
 
@@ -745,7 +844,7 @@ function showNotification(type, message) {
         align-items: center;
         gap: 10px;
         animation: slideInRight 0.3s ease;
-        background: ${type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : '#17a2b8'};
+        background: ${type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : type === 'error' ? '#dc3545' : '#17a2b8'};
     `;
     document.body.appendChild(notification);
     setTimeout(() => notification.remove(), 4000);
@@ -779,24 +878,16 @@ class CalendarChiusure {
         this.grid = document.getElementById('calendarGrid');
         this.monthLabel = document.getElementById('calendarMonth');
         this.details = document.getElementById('calendarDetails');
-        this.detailsContent = document.getElementById('calendarDetailsContent');
+        this.detailsContent = document.getElementById('detailsContent');
         if (!this.grid || !this.monthLabel) return;
-        const prevBtn = document.getElementById('prevMonth');
-        const nextBtn = document.getElementById('nextMonth');
-        const printBtn = document.getElementById('printClosure');
-        const exportBtn = document.getElementById('exportClosure');
-        if (prevBtn) prevBtn.onclick = () => this.changeMonth(-1);
-        if (nextBtn) nextBtn.onclick = () => this.changeMonth(1);
-        if (printBtn) printBtn.onclick = () => window.print();
-        if (exportBtn) exportBtn.onclick = () => this.exportClosure();
         this.render();
     }
-    render() {
+    async render() {
         if (!this.grid || !this.monthLabel) return;
         const year = this.currentDate.getFullYear();
         const month = this.currentDate.getMonth();
         this.monthLabel.textContent = this.currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
-        const days = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+        const days = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
         this.grid.innerHTML = '';
         days.forEach(d => {
             const el = document.createElement('div');
@@ -805,8 +896,16 @@ class CalendarChiusure {
             this.grid.appendChild(el);
         });
         const first = new Date(year, month, 1);
-        const startDay = (first.getDay() + 6) % 7;
+        const startDay = first.getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        // Carica dati chiusure da Supabase
+        const chiusure = await dbManager.loadData('chiusure_cassa');
+        const chiusureMap = {};
+        chiusure.forEach(c => {
+            chiusureMap[c.data.split('T')[0]] = c;
+        });
+        
         for (let i = 0; i < startDay; i++) {
             const el = document.createElement('div');
             el.className = 'calendar-day other-month';
@@ -818,24 +917,19 @@ class CalendarChiusure {
             const el = document.createElement('div');
             el.className = 'calendar-day';
             if (this.isToday(date)) el.classList.add('today');
-            if (localStorage.getItem(`chiusura_${dateKey}`)) el.classList.add('has-data');
+            if (chiusureMap[dateKey]) el.classList.add('has-data');
             el.textContent = d;
             el.onclick = () => this.showDetails(date);
             this.grid.appendChild(el);
         }
     }
-    changeMonth(delta) {
-        const newMonth = this.currentDate.getMonth() + delta;
-        const newYear = this.currentDate.getFullYear();
-        if (newMonth < 0) {
-            this.currentDate = new Date(newYear - 1, 11, 1);
-        } else if (newMonth > 11) {
-            this.currentDate = new Date(newYear + 1, 0, 1);
-        } else {
-            this.currentDate = new Date(newYear, newMonth, 1);
-        }
+    previousMonth() {
+        this.currentDate.setMonth(this.currentDate.getMonth() - 1);
         this.render();
-        if (this.details) this.details.style.display = 'none';
+    }
+    nextMonth() {
+        this.currentDate.setMonth(this.currentDate.getMonth() + 1);
+        this.render();
     }
     isToday(date) {
         const now = new Date();
@@ -843,14 +937,15 @@ class CalendarChiusure {
                date.getMonth() === now.getMonth() &&
                date.getFullYear() === now.getFullYear();
     }
-    showDetails(date) {
+    async showDetails(date) {
         const dateKey = date.toISOString().split('T')[0];
-        const data = localStorage.getItem(`chiusura_${dateKey}`);
-        if (!data) {
+        const chiusure = await dbManager.loadData('chiusure_cassa');
+        const chiusura = chiusure.find(c => c.data.split('T')[0] === dateKey);
+        
+        if (!chiusura) {
             if (this.details) this.details.style.display = 'none';
             return;
         }
-        const chiusura = JSON.parse(data);
         if (this.detailsContent) {
             this.detailsContent.textContent = `
 Data: ${date.toLocaleDateString('it-IT')}
@@ -870,17 +965,33 @@ Status: ${chiusura.status?.toUpperCase() || ''}
         if (this.details) this.details.style.display = 'block';
         this.selectedDate = date;
     }
-    exportClosure() {
-        if (!this.selectedDate) return;
-        const dateKey = this.selectedDate.toISOString().split('T')[0];
-        const data = localStorage.getItem(`chiusura_${dateKey}`);
-        if (!data) return;
-        const blob = new Blob([this.detailsContent.textContent], { type: 'text/plain' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `chiusura_${dateKey}.txt`;
-        a.click();
-        URL.revokeObjectURL(a.href);
+    printDetails() {
+        const content = this.detailsContent?.textContent;
+        if (content) {
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                    <head><title>Dettagli Chiusura</title></head>
+                    <body>
+                        <h1>Dettagli Chiusura Cassa</h1>
+                        <pre>${content}</pre>
+                    </body>
+                </html>
+            `);
+            printWindow.print();
+        }
+    }
+    exportDetails() {
+        const content = this.detailsContent?.textContent;
+        if (content) {
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chiusura_${this.selectedDate.toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
     }
 }
 
@@ -894,21 +1005,17 @@ class CassaCalendar {
     init() {
         this.grid = document.getElementById('cassaCalendarGrid');
         this.monthLabel = document.getElementById('cassaCalendarMonth');
-        this.selectedDateDisplay = document.getElementById('selectedDateDisplay');
+        this.selectedDateDisplay = document.getElementById('selectedDateInfo');
         if (!this.grid || !this.monthLabel) return;
-        const prevBtn = document.getElementById('cassaPrevMonth');
-        const nextBtn = document.getElementById('cassaNextMonth');
-        if (prevBtn) prevBtn.onclick = () => this.changeMonth(-1);
-        if (nextBtn) nextBtn.onclick = () => this.changeMonth(1);
         this.render();
         this.updateSelectedDateDisplay();
     }
-    render() {
+    async render() {
         if (!this.grid || !this.monthLabel) return;
         const year = this.currentDate.getFullYear();
         const month = this.currentDate.getMonth();
         this.monthLabel.textContent = this.currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
-        const days = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+        const days = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
         this.grid.innerHTML = '';
         days.forEach(d => {
             const el = document.createElement('div');
@@ -917,8 +1024,16 @@ class CassaCalendar {
             this.grid.appendChild(el);
         });
         const first = new Date(year, month, 1);
-        const startDay = (first.getDay() + 6) % 7;
+        const startDay = first.getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        // Carica dati chiusure da Supabase
+        const chiusure = await dbManager.loadData('chiusure_cassa');
+        const chiusureMap = {};
+        chiusure.forEach(c => {
+            chiusureMap[c.data.split('T')[0]] = c;
+        });
+        
         for (let i = 0; i < startDay; i++) {
             const el = document.createElement('div');
             el.className = 'cassa-calendar-day other-month';
@@ -931,22 +1046,18 @@ class CassaCalendar {
             el.className = 'cassa-calendar-day';
             if (this.isToday(date)) el.classList.add('today');
             if (this.isSelected(date)) el.classList.add('selected');
-            if (localStorage.getItem(`chiusura_${dateKey}`)) el.classList.add('has-data');
+            if (chiusureMap[dateKey]) el.classList.add('has-data');
             el.textContent = d;
             el.onclick = () => this.selectDate(date);
             this.grid.appendChild(el);
         }
     }
-    changeMonth(delta) {
-        const newMonth = this.currentDate.getMonth() + delta;
-        const newYear = this.currentDate.getFullYear();
-        if (newMonth < 0) {
-            this.currentDate = new Date(newYear - 1, 11, 1);
-        } else if (newMonth > 11) {
-            this.currentDate = new Date(newYear + 1, 0, 1);
-        } else {
-            this.currentDate = new Date(newYear, newMonth, 1);
-        }
+    previousMonth() {
+        this.currentDate.setMonth(this.currentDate.getMonth() - 1);
+        this.render();
+    }
+    nextMonth() {
+        this.currentDate.setMonth(this.currentDate.getMonth() + 1);
         this.render();
     }
     isToday(date) {
@@ -961,7 +1072,7 @@ class CassaCalendar {
                date.getMonth() === this.selectedDate.getMonth() &&
                date.getFullYear() === this.selectedDate.getFullYear();
     }
-    selectDate(date) {
+    async selectDate(date) {
         this.selectedDate = new Date(date);
         this.render();
         this.updateSelectedDateDisplay();
@@ -969,7 +1080,7 @@ class CassaCalendar {
             window.chiusuraCassaSystem.changeEditDate(date);
         }
     }
-    updateSelectedDateDisplay() {
+    async updateSelectedDateDisplay() {
         if (!this.selectedDateDisplay || !this.selectedDate) return;
         const dateStr = this.selectedDate.toLocaleDateString('it-IT', {
             weekday: 'long',
@@ -978,7 +1089,23 @@ class CassaCalendar {
             day: 'numeric'
         });
         const isToday = this.isToday(this.selectedDate);
-        this.selectedDateDisplay.textContent = `Data selezionata: ${dateStr} ${isToday ? '(OGGI)' : ''}`;
+        
+        const dateKey = this.selectedDate.toISOString().split('T')[0];
+        const chiusure = await dbManager.loadData('chiusure_cassa');
+        const chiusura = chiusure.find(c => c.data.split('T')[0] === dateKey);
+        
+        if (chiusura) {
+            this.selectedDateDisplay.innerHTML = `
+                <strong>${dateStr} ${isToday ? '(OGGI)' : ''}</strong><br>
+                Scontrinato: €${(chiusura.scontrinatoTotale || 0).toFixed(2)}<br>
+                Fondo Cassa: €${(chiusura.fondoCassa || 0).toFixed(2)}
+            `;
+        } else {
+            this.selectedDateDisplay.innerHTML = `
+                <strong>${dateStr} ${isToday ? '(OGGI)' : ''}</strong><br>
+                Nessuna chiusura registrata
+            `;
+        }
     }
 }
 
@@ -1024,35 +1151,37 @@ class ChiusuraCassaSystem {
         this.verificaCompleta = document.getElementById('verificaCompleta');
         this.salvaBtn = document.getElementById('salvaBtn');
         this.esportaBtn = document.getElementById('esportaBtn');
-        this.modal = document.getElementById('modal');
+        this.modal = document.getElementById('messageModal');
         this.modalBody = document.getElementById('modalBody');
     }
-    loadStoredData() {
+    async loadStoredData() {
         const yesterday = new Date(this.currentEditDate);
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayKey = this.getDateKey(yesterday);
-        const yesterdayData = localStorage.getItem(`chiusura_${yesterdayKey}`);
+        
+        const chiusure = await dbManager.loadData('chiusure_cassa');
+        const yesterdayData = chiusure.find(c => c.data.split('T')[0] === yesterdayKey);
+        
         if (this.moneteGiornoPrecedente) {
             if (yesterdayData) {
-                const data = JSON.parse(yesterdayData);
-                this.moneteGiornoPrecedente.value = data.moneteAttuali || 70;
+                this.moneteGiornoPrecedente.value = yesterdayData.moneteAttuali || 70;
             } else {
                 this.moneteGiornoPrecedente.value = 70;
             }
         }
         const currentKey = this.getDateKey(this.currentEditDate);
-        const currentData = localStorage.getItem(`chiusura_${currentKey}`);
+        const currentData = chiusure.find(c => c.data.split('T')[0] === currentKey);
+        
         if (currentData) {
-            const data = JSON.parse(currentData);
-            if (this.scontrinatoTotale) this.scontrinatoTotale.value = data.scontrinatoTotale || '';
-            if (this.scontrinatoContanti) this.scontrinatoContanti.value = data.scontrinatoContanti || '';
-            if (this.scontrinatoPos) this.scontrinatoPos.value = data.scontrinatoPos || '';
-            if (this.art74) this.art74.value = data.art74 || '';
-            if (this.art22) this.art22.value = data.art22 || '';
-            if (this.dropPos) this.dropPos.value = data.dropPos || '';
-            if (this.dropCash) this.dropCash.value = data.dropCash || '';
-            if (this.moneteAttuali) this.moneteAttuali.value = data.moneteAttuali || '';
-            if (this.totaleContantiCassa) this.totaleContantiCassa.value = data.totaleContantiCassa || '';
+            if (this.scontrinatoTotale) this.scontrinatoTotale.value = currentData.scontrinatoTotale || '';
+            if (this.scontrinatoContanti) this.scontrinatoContanti.value = currentData.scontrinatoContanti || '';
+            if (this.scontrinatoPos) this.scontrinatoPos.value = currentData.scontrinatoPos || '';
+            if (this.art74) this.art74.value = currentData.art74 || '';
+            if (this.art22) this.art22.value = currentData.art22 || '';
+            if (this.dropPos) this.dropPos.value = currentData.dropPos || '';
+            if (this.dropCash) this.dropCash.value = currentData.dropCash || '';
+            if (this.moneteAttuali) this.moneteAttuali.value = currentData.moneteAttuali || '';
+            if (this.totaleContantiCassa) this.totaleContantiCassa.value = currentData.totaleContantiCassa || '';
         } else {
             if (this.scontrinatoTotale) this.scontrinatoTotale.value = '';
             if (this.scontrinatoContanti) this.scontrinatoContanti.value = '';
@@ -1076,8 +1205,6 @@ class ChiusuraCassaSystem {
             input.addEventListener('input', () => this.updateFondoCassaLive());
         });
         if (this.verificaCompleta) this.verificaCompleta.addEventListener('click', () => this.verificaCompleta_Click());
-        if (this.form) this.form.addEventListener('submit', (e) => this.salvaChiusura(e));
-        if (this.esportaBtn) this.esportaBtn.addEventListener('click', () => this.esportaReport());
         const closeBtn = document.querySelector('.close');
         if (closeBtn) closeBtn.addEventListener('click', () => this.closeModal());
         window.addEventListener('click', (e) => {
@@ -1136,248 +1263,296 @@ class ChiusuraCassaSystem {
             this.showModal('warning', 'Avvisi Rilevati', 
                 'Ci sono alcuni avvisi nei calcoli, ma puoi comunque salvare la chiusura.');
         } else {
-            this.showModal('success', 'Verifica Completata', 
+            this.showModal('success', 'Verifica Completata',
                 'Tutti i controlli sono stati superati! Puoi salvare la chiusura.');
         }
     }
-    verificaScontrinato() {
-        const totale = parseFloat(this.scontrinatoTotale?.value) || 0;
-        const contanti = parseFloat(this.scontrinatoContanti?.value) || 0;
-        const pos = parseFloat(this.scontrinatoPos?.value) || 0;
-        if (!this.verificationResult) return;
-        if (totale === 0 && contanti === 0 && pos === 0) {
-            this.verificationResult.style.display = 'none';
-            return;
-        }
-        const somma = contanti + pos;
-        const differenza = Math.abs(totale - somma);
-        this.verificationResult.style.display = 'block';
-        if (differenza < 0.01) {
-            this.verificationResult.className = 'verification-result success';
-            this.verificationResult.innerHTML = '✅ Scontrinato verificato correttamente';
-        } else {
-            this.verificationResult.className = 'verification-result error';
-            this.verificationResult.innerHTML = 
-                `❌ AVVISO: Discrepanza scontrinato! Differenza: €${differenza.toFixed(2)}`;
-        }
+   verificaScontrinato() {
+    const totale = parseFloat(this.scontrinatoTotale?.value) || 0;
+    const contanti = parseFloat(this.scontrinatoContanti?.value) || 0;
+    const pos = parseFloat(this.scontrinatoPos?.value) || 0;
+    
+    if (!this.verificationResult) return;
+    
+    if (totale === 0 && contanti === 0 && pos === 0) {
+        this.verificationResult.style.display = 'none';
+        return;
     }
-    verificaArticoli() {
-        const scontrinatoTotale = parseFloat(this.scontrinatoTotale?.value) || 0;
-        const art74 = parseFloat(this.art74?.value) || 0;
-        const art22 = parseFloat(this.art22?.value) || 0;
-        if (!this.articoliVerification) return;
-        if (scontrinatoTotale === 0 && art74 === 0 && art22 === 0) {
-            this.articoliVerification.style.display = 'none';
-            return;
-        }
-        const sommaArticoli = art74 + art22;
-        const differenza = Math.abs(scontrinatoTotale - sommaArticoli);
-        this.articoliVerification.style.display = 'block';
-        if (differenza < 0.01) {
-            this.articoliVerification.className = 'articoli-verification success';
-            this.articoliVerification.innerHTML = '✅ Art. 74 + Art. 22 = Scontrinato Totale ✓';
-        } else {
-            this.articoliVerification.className = 'articoli-verification error';
-            this.articoliVerification.innerHTML = 
-                `❌ AVVISO: Art. 74 + Art. 22 ≠ Scontrinato Totale! Differenza: €${differenza.toFixed(2)}`;
-        }
-    }
-    updateDropPosStatus() {
-        if (!this.plafondFill) return;
-        const dropAmount = parseFloat(this.dropPos?.value) || 0;
-        const percentage = (dropAmount / 1500) * 100;
-        this.plafondFill.style.width = `${Math.min(percentage, 100)}%`;
-        if (percentage < 80) {
-            this.plafondFill.style.background = '#28a745';
-        } else if (percentage < 100) {
-            this.plafondFill.style.background = '#ffc107';
-        } else {
-            this.plafondFill.style.background = '#dc3545';
-        }
-    }
-    updateDateTime() {
-        const now = new Date();
-        const options = { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-        };
-        const dateEl = document.getElementById('currentDate');
-        const timeEl = document.getElementById('currentTime');
-        if (dateEl) dateEl.textContent = now.toLocaleDateString('it-IT', options);
-        if (timeEl) timeEl.textContent = now.toLocaleTimeString('it-IT');
-    }
-    updateCountdown() {
-        if (!this.countdown) return;
-        const now = new Date();
-        const deadline = new Date();
-        deadline.setHours(20, 0, 0, 0);
-        if (now > deadline) {
-            deadline.setDate(deadline.getDate() + 1);
-        }
-        const diff = deadline - now;
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        this.countdown.textContent = `${hours}h ${minutes}m alle 20:00`;
-        if (hours < 2) {
-            this.countdown.style.color = '#dc3545';
-            this.countdown.style.fontWeight = 'bold';
-        }
-    }
-    salvaChiusura(e) {
-        e.preventDefault();
-        const moneteAttuali = parseFloat(this.moneteAttuali?.value) || 0;
-        const moneteGiornoPrecedente = parseFloat(this.moneteGiornoPrecedente?.value) || 0;
-        const differenzaMonete = moneteAttuali - moneteGiornoPrecedente;
-        const data = {
-            data: this.currentEditDate.toISOString(),
-            scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
-            scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
-            scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
-            art74: parseFloat(this.art74?.value) || 0,
-            art22: parseFloat(this.art22?.value) || 0,
-            dropPos: parseFloat(this.dropPos?.value) || 0,
-            dropCash: parseFloat(this.dropCash?.value) || 0,
-            moneteGiornoPrecedente: moneteGiornoPrecedente,
-            moneteAttuali: moneteAttuali,
-            totaleContantiCassa: parseFloat(this.totaleContantiCassa?.value) || 0,
-            fondoCassa: parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0,
-            differenzaMonete: differenzaMonete,
-            status: this.getOverallStatus()
-        };
-        const dateKey = this.getDateKey(this.currentEditDate);
-        localStorage.setItem(`chiusura_${dateKey}`, JSON.stringify(data));
-        this.showModal('success', 'Chiusura Salvata', 
-            `La chiusura cassa per il ${this.currentEditDate.toLocaleDateString('it-IT')} è stata salvata correttamente!`);
-        if (window.calendarChiusure) window.calendarChiusure.render();
-        if (window.cassaCalendar) window.cassaCalendar.render();
-        const isToday = this.getDateKey(this.currentEditDate) === this.getDateKey(new Date());
-        if (isToday) {
-            if (this.scontrinatoTotale) this.scontrinatoTotale.value = '';
-            if (this.scontrinatoContanti) this.scontrinatoContanti.value = '';
-            if (this.scontrinatoPos) this.scontrinatoPos.value = '';
-            if (this.art74) this.art74.value = '';
-            if (this.art22) this.art22.value = '';
-            if (this.dropPos) this.dropPos.value = '';
-            if (this.dropCash) this.dropCash.value = '';
-            if (this.totaleContantiCassa) this.totaleContantiCassa.value = '';
-            if (this.moneteAttuali) this.moneteAttuali.value = '';
-        }
-    }
-    esportaReport() {
-        const dateKey = this.getDateKey(this.currentEditDate);
-        const data = localStorage.getItem(`chiusura_${dateKey}`);
-        if (!data) {
-            this.showModal('warning', 'Nessun Dato', 
-                `Non ci sono dati da esportare per il ${this.currentEditDate.toLocaleDateString('it-IT')}.`);
-            return;
-        }
-        const chiusura = JSON.parse(data);
-        const report = this.generateReport(chiusura);
-        const blob = new Blob([report], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `chiusura_cassa_${dateKey}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-    generateReport(data) {
-        const date = new Date(data.data).toLocaleDateString('it-IT');
-        return `
-REPORT CHIUSURA CASSA
-=====================
-Data: ${date}
-Ora: ${new Date(data.data).toLocaleTimeString('it-IT')}
-
-SCONTRINATO GIORNALIERO
------------------------
-Totale: €${data.scontrinatoTotale.toFixed(2)}
-Contanti: €${data.scontrinatoContanti.toFixed(2)}
-POS: €${data.scontrinatoPos.toFixed(2)}
-
-ARTICOLI FISCALI
-----------------
-Art. 74: €${(data.art74 || 0).toFixed(2)}
-Art. 22: €${(data.art22 || 0).toFixed(2)}
-Totale Articoli: €${((data.art74 || 0) + (data.art22 || 0)).toFixed(2)}
-
-DROP
-----
-Drop POS: €${data.dropPos.toFixed(2)}
-Drop Cash: €${data.dropCash.toFixed(2)}
-
-MONETE (Base: €70.00)
----------------------
-Giorno Precedente: €${data.moneteGiornoPrecedente.toFixed(2)}
-Attuali: €${data.moneteAttuali.toFixed(2)}
-Differenza: €${(data.differenzaMonete || 0).toFixed(2)}
-
-FONDO CASSA
------------
-Totale Contanti in Cassa: €${data.totaleContantiCassa.toFixed(2)}
-Risultato Fondo Cassa: €${data.fondoCassa.toFixed(2)}
-(Fondo cassa iniziale di €100.00 già sottratto)
-
-STATUS: ${(data.status || 'N/A').toUpperCase()}
-
-Generato il: ${new Date().toLocaleString('it-IT')}
-        `.trim();
-    }
-    showModal(type, title, message) {
-        if (!this.modal || !this.modalBody) return;
-        const icon = type === 'success' ? '✅' : 
-                    type === 'warning' ? '⚠️' : 
-                    type === 'info' ? 'ℹ️' : '❌';
-        this.modalBody.innerHTML = `
-            <h2>${icon} ${title}</h2>
-            <p>${message}</p>
-        `;
-        this.modal.style.display = 'block';
-    }
-    closeModal() {
-        if (this.modal) this.modal.style.display = 'none';
-    }
-    updateStatus(type, message) {
-        const dot = this.statusIndicator?.querySelector('.status-dot');
-        const text = this.statusIndicator?.querySelector('.status-text');
-        if (dot && text) {
-            dot.className = `status-dot ${type}`;
-            text.textContent = message;
-        }
-    }
-    getOverallStatus() {
-        const hasCalculationErrors = (this.verificationResult?.classList.contains('error') || false) ||
-                                   (this.articoliVerification?.classList.contains('error') || false);
-        const fondoCassa = parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0;
-        if (hasCalculationErrors) return 'warning';
-        if (Math.abs(fondoCassa) > 50) return 'warning';
-        return 'ok';
-    }
-    getDateKey(date) {
-        return date.toISOString().split('T')[0];
+    
+    const somma = contanti + pos;
+    const differenza = Math.abs(totale - somma);
+    
+    this.verificationResult.style.display = 'block';
+    
+    if (differenza < 0.01) {
+        this.verificationResult.className = 'verification-result success';
+        this.verificationResult.innerHTML = '✅ Scontrinato verificato correttamente';
+    } else {
+        this.verificationResult.className = 'verification-result error';
+        this.verificationResult.innerHTML = 
+            `❌ AVVISO: Discrepanza scontrinato! Differenza: €${differenza.toFixed(2)}`;
     }
 }
 
+verificaArticoli() {
+    const scontrinatoTotale = parseFloat(this.scontrinatoTotale?.value) || 0;
+    const art74 = parseFloat(this.art74?.value) || 0;
+    const art22 = parseFloat(this.art22?.value) || 0;
+    
+    if (!this.articoliVerification) return;
+    
+    if (scontrinatoTotale === 0 && art74 === 0 && art22 === 0) {
+        this.articoliVerification.style.display = 'none';
+        return;
+    }
+    
+    const sommaArticoli = art74 + art22;
+    const differenza = Math.abs(scontrinatoTotale - sommaArticoli);
+    
+    this.articoliVerification.style.display = 'block';
+    
+    if (differenza < 0.01) {
+        this.articoliVerification.className = 'articoli-verification success';
+        this.articoliVerification.innerHTML = '✅ Art. 74 + Art. 22 = Scontrinato Totale ✓';
+    } else {
+        this.articoliVerification.className = 'articoli-verification error';
+        this.articoliVerification.innerHTML = 
+            `❌ AVVISO: Art. 74 + Art. 22 ≠ Scontrinato Totale! Differenza: €${differenza.toFixed(2)}`;
+    }
+}
+
+updateDropPosStatus() {
+    if (!this.plafondFill) return;
+    const dropAmount = parseFloat(this.dropPos?.value) || 0;
+    const percentage = (dropAmount / 1500) * 100;
+    this.plafondFill.style.width = `${Math.min(percentage, 100)}%`;
+    
+    if (percentage < 80) {
+        this.plafondFill.style.background = '#28a745';
+    } else if (percentage < 100) {
+        this.plafondFill.style.background = '#ffc107';
+    } else {
+        this.plafondFill.style.background = '#dc3545';
+    }
+}
+
+updateDateTime() {
+    const now = new Date();
+    const options = { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    };
+    const dateEl = document.getElementById('currentDate');
+    const timeEl = document.getElementById('currentTime');
+    if (dateEl) dateEl.textContent = now.toLocaleDateString('it-IT', options);
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString('it-IT');
+}
+
+updateCountdown() {
+    if (!this.countdown) return;
+    const now = new Date();
+    const deadline = new Date();
+    deadline.setHours(20, 0, 0, 0);
+    if (now > deadline) {
+        deadline.setDate(deadline.getDate() + 1);
+    }
+    const diff = deadline - now;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    this.countdown.textContent = `${hours}h ${minutes}m alle 20:00`;
+    if (hours < 2) {
+        this.countdown.style.color = '#dc3545';
+        this.countdown.style.fontWeight = 'bold';
+    }
+}
+
+async salvaChiusura(e) {
+    if (e) e.preventDefault();
+    
+    const moneteAttuali = parseFloat(this.moneteAttuali?.value) || 0;
+    const moneteGiornoPrecedente = parseFloat(this.moneteGiornoPrecedente?.value) || 0;
+    const differenzaMonete = moneteAttuali - moneteGiornoPrecedente;
+    const totaleContanti = parseFloat(this.totaleContantiCassa?.value) || 0;
+    const scontrinatoCash = parseFloat(this.scontrinatoContanti?.value) || 0;
+    const dropCash = parseFloat(this.dropCash?.value) || 0;
+    const fondoCassa = totaleContanti - scontrinatoCash - dropCash + differenzaMonete - 100;
+    
+    const data = {
+        data: this.currentEditDate.toISOString().split('T')[0],
+        scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
+        scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
+        scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
+        art74: parseFloat(this.art74?.value) || 0,
+        art22: parseFloat(this.art22?.value) || 0,
+        dropPos: parseFloat(this.dropPos?.value) || 0,
+        dropCash: parseFloat(this.dropCash?.value) || 0,
+        moneteGiornoPrecedente: moneteGiornoPrecedente,
+        moneteAttuali: moneteAttuali,
+        totaleContantiCassa: totaleContanti,
+        fondoCassa: fondoCassa,
+        differenzaMonete: differenzaMonete,
+        status: this.getOverallStatus(),
+        timestamp: new Date().toISOString()
+    };
+    
+    try {
+        await dbManager.saveData('chiusure_cassa', data);
+        showNotification('success', `Chiusura cassa salvata per il ${this.currentEditDate.toLocaleDateString('it-IT')}!`);
+        
+        // Aggiorna i calendari
+        if (window.calendarChiusure) window.calendarChiusure.render();
+        if (window.cassaCalendar) window.cassaCalendar.render();
+        
+        // Aggiorna dashboard se attivo
+        if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+            aggiornaDashboardAvanzata();
+        }
+        
+    } catch (error) {
+        console.error('Errore salvataggio chiusura:', error);
+        showNotification('error', 'Errore nel salvataggio della chiusura');
+    }
+}
+
+esportaReport() {
+    const dateKey = this.getDateKey(this.currentEditDate);
+    const values = this.getFormValues();
+    
+    const report = `
+REPORT CHIUSURA CASSA
+=====================
+Data: ${this.currentEditDate.toLocaleDateString('it-IT')}
+Ora: ${new Date().toLocaleTimeString('it-IT')}
+
+SCONTRINATO GIORNALIERO
+-----------------------
+Totale: €${values.scontrinatoTotale.toFixed(2)}
+Contanti: €${values.scontrinatoContanti.toFixed(2)}
+POS: €${values.scontrinatoPos.toFixed(2)}
+
+ARTICOLI FISCALI
+----------------
+Art. 74: €${values.art74.toFixed(2)}
+Art. 22: €${values.art22.toFixed(2)}
+Totale Articoli: €${(values.art74 + values.art22).toFixed(2)}
+
+DROP
+----
+Drop POS: €${values.dropPos.toFixed(2)}
+Drop Cash: €${values.dropCash.toFixed(2)}
+
+MONETE (Base: €70.00)
+---------------------
+Giorno Precedente: €${values.moneteGiornoPrecedente.toFixed(2)}
+Attuali: €${values.moneteAttuali.toFixed(2)}
+Differenza: €${(values.moneteAttuali - values.moneteGiornoPrecedente).toFixed(2)}
+
+FONDO CASSA
+-----------
+Totale Contanti in Cassa: €${(values.scontrinatoContanti + values.art74 + values.art22).toFixed(2)}
+Risultato Fondo Cassa: €${(values.scontrinatoContanti + values.art74 + values.art22 - values.scontrinatoContanti - values.dropCash + (values.moneteAttuali - values.moneteGiornoPrecedente) - 100).toFixed(2)}
+
+Generato il: ${new Date().toLocaleString('it-IT')}
+    `.trim();
+    
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chiusura_cassa_${dateKey}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showNotification('success', 'Report esportato con successo!');
+}
+
+getFormValues() {
+    return {
+        scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
+        scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
+        scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
+        art74: parseFloat(this.art74?.value) || 0,
+        art22: parseFloat(this.art22?.value) || 0,
+        dropPos: parseFloat(this.dropPos?.value) || 0,
+        dropCash: parseFloat(this.dropCash?.value) || 0,
+        moneteGiornoPrecedente: parseFloat(this.moneteGiornoPrecedente?.value) || 0,
+        moneteAttuali: parseFloat(this.moneteAttuali?.value) || 0
+    };
+}
+
+showModal(type, title, message) {
+    const modal = document.getElementById('messageModal');
+    const modalBody = document.getElementById('modalBody');
+    
+    if (!modal || !modalBody) return;
+    
+    const icon = type === 'success' ? '✅' : 
+                type === 'warning' ? '⚠️' : 
+                type === 'info' ? 'ℹ️' : '❌';
+    
+    modalBody.innerHTML = `
+        <h2>${icon} ${title}</h2>
+        <p>${message}</p>
+    `;
+    modal.style.display = 'block';
+}
+
+closeModal() {
+    const modal = document.getElementById('messageModal');
+    if (modal) modal.style.display = 'none';
+}
+
+updateStatus(type, message) {
+    const dot = this.statusIndicator?.querySelector('.status-dot');
+    const text = this.statusIndicator?.querySelector('.status-text');
+    if (dot && text) {
+        dot.className = `status-dot ${type}`;
+        text.textContent = message;
+    }
+}
+
+getOverallStatus() {
+    const hasCalculationErrors = (this.verificationResult?.classList.contains('error') || false) ||
+                               (this.articoliVerification?.classList.contains('error') || false);
+    const fondoCassa = parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0;
+    if (hasCalculationErrors) return 'warning';
+    if (Math.abs(fondoCassa) > 50) return 'warning';
+    return 'ok';
+}
+
+getDateKey(date) {
+    return date.toISOString().split('T')[0];
+}
+}
+
+// Inizializzazione quando il DOM è pronto
 document.addEventListener('DOMContentLoaded', () => {
+    // Avvia aggiornamento orario
     setInterval(updateModernDateTime, 1000);
     updateModernDateTime();
-    aggiornaDataOra();
-    setInterval(aggiornaDataOra, 1000);
+
+    // Inizializza dashboard se presente
     if (document.getElementById('dashboardPeriod')) {
         document.getElementById('dashboardPeriod').onchange = aggiornaDashboardAvanzata;
         aggiornaDashboardAvanzata();
     }
+
     if (document.getElementById('dashboardYear')) {
         document.getElementById('dashboardYear').onchange = aggiornaDashboardAvanzata;
     }
+
     if (document.getElementById('refreshDashboard')) {
         document.getElementById('refreshDashboard').onclick = aggiornaDashboardAvanzata;
     }
+
+    // Carica dati iniziali
     caricaFornitori();
     mostraFatture();
     mostraRicorrenze();
+
+    // Setup event listeners per gestione fornitori
     const aggiungiFornitoreBtn = document.getElementById('aggiungiFornitore');
     const nuovoFornitoreInput = document.getElementById('nuovoFornitore');
     if (aggiungiFornitoreBtn) aggiungiFornitoreBtn.onclick = aggiungiFornitore;
@@ -1386,22 +1561,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key === 'Enter') aggiungiFornitore();
         };
     }
+
+    // Setup event listeners per form fatture
     const fatturaForm = document.getElementById('fatturaForm');
     const resetFatturaBtn = document.getElementById('resetFatturaForm');
     if (fatturaForm) fatturaForm.onsubmit = salvaFattura;
     if (resetFatturaBtn) resetFatturaBtn.onclick = resetFatturaForm;
+
+    // Setup filtri per fatture
     const filtroStato = document.getElementById('filtroStato');
     const filtroFornitore = document.getElementById('filtroFornitore');
     const filtroRicerca = document.getElementById('filtroRicerca');
     if (filtroStato) filtroStato.onchange = mostraFatture;
     if (filtroFornitore) filtroFornitore.onchange = mostraFatture;
     if (filtroRicerca) filtroRicerca.oninput = mostraFatture;
+
+    // Setup event listeners per form ricorrenze
     const ricorrenzaForm = document.getElementById('ricorrenzaForm');
     const resetRicorrenzaBtn = document.getElementById('resetRicorrenzaForm');
     if (ricorrenzaForm) ricorrenzaForm.onsubmit = salvaRicorrenza;
     if (resetRicorrenzaBtn) resetRicorrenzaBtn.onclick = () => ricorrenzaForm.reset();
-    new CalendarChiusure();
+
+    // Inizializza calendari e sistemi
+    window.calendarChiusure = new CalendarChiusure();
     window.cassaCalendar = new CassaCalendar();
     window.chiusuraCassaSystem = new ChiusuraCassaSystem();
-    console.log('🎉 Sistema aziendale con header moderno inizializzato con successo!');
+
+    console.log('🎉 Sistema aziendale con Supabase inizializzato con successo!');
 });
+
