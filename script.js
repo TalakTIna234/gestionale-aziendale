@@ -1,4 +1,12 @@
 // Database functions per Supabase - AGGIUNTA SENZA MODIFICARE IL RESTO
+// Configurazione Supabase
+const USE_SUPABASE = true; // Cambia in true quando configurato
+let supabase = null;
+
+// Per attivare Supabase, decommentare le righe seguenti:
+ const USE_SUPABASE = true;
+ const supabase = createClient('https://fodowfardgribthpgxxs.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk');
+
 class DatabaseManager {
     constructor() {
         this.isOnline = navigator.onLine;
