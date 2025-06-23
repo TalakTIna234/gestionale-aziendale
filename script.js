@@ -1,4 +1,4 @@
-// Database functions per Supabase
+// Database functions per Supabase - AGGIUNTA
 class DatabaseManager {
     constructor() {
         this.isOnline = navigator.onLine;
@@ -22,28 +22,15 @@ class DatabaseManager {
             try {
                 let result;
                 if (key) {
-                    // Update existing record
-                    result = await supabase
-                        .from(table)
-                        .update(data)
-                        .eq('id', key)
-                        .select();
+                    result = await supabase.from(table).update(data).eq('id', key).select();
                 } else {
-                    // Insert new record
-                    result = await supabase
-                        .from(table)
-                        .insert([data])
-                        .select();
+                    result = await supabase.from(table).insert([data]).select();
                 }
                 
-                if (result.error) {
-                    throw result.error;
-                }
-                
+                if (result.error) throw result.error;
                 return result.data[0];
             } catch (error) {
                 console.error('Errore Supabase:', error);
-                // Fallback to localStorage
                 return this.saveToLocalStorage(table, data, key);
             }
         } else {
@@ -55,23 +42,16 @@ class DatabaseManager {
         if (USE_SUPABASE && this.isOnline) {
             try {
                 let query = supabase.from(table).select('*');
-                
                 if (filters) {
                     Object.entries(filters).forEach(([key, value]) => {
                         query = query.eq(key, value);
                     });
                 }
-                
                 const result = await query;
-                
-                if (result.error) {
-                    throw result.error;
-                }
-                
+                if (result.error) throw result.error;
                 return result.data || [];
             } catch (error) {
                 console.error('Errore caricamento Supabase:', error);
-                // Fallback to localStorage
                 return this.loadFromLocalStorage(table);
             }
         } else {
@@ -82,19 +62,11 @@ class DatabaseManager {
     async deleteData(table, id) {
         if (USE_SUPABASE && this.isOnline) {
             try {
-                const result = await supabase
-                    .from(table)
-                    .delete()
-                    .eq('id', id);
-                
-                if (result.error) {
-                    throw result.error;
-                }
-                
+                const result = await supabase.from(table).delete().eq('id', id);
+                if (result.error) throw result.error;
                 return true;
             } catch (error) {
                 console.error('Errore eliminazione Supabase:', error);
-                // Fallback to localStorage
                 return this.deleteFromLocalStorage(table, id);
             }
         } else {
@@ -128,9 +100,7 @@ class DatabaseManager {
 
     async syncOfflineData() {
         if (!USE_SUPABASE || !this.isOnline) return;
-        
         console.log('Sincronizzazione dati offline...');
-        
         for (const item of this.syncQueue) {
             try {
                 await this.saveData(item.table, item.data, item.key);
@@ -138,404 +108,20 @@ class DatabaseManager {
                 console.error('Errore sincronizzazione:', error);
             }
         }
-        
         this.syncQueue = [];
-        showNotification('success', 'Dati sincronizzati con successo!');
     }
 }
 
-// Inizializza il database manager
+// Inizializza il database manager - AGGIUNTA
 const dbManager = new DatabaseManager();
 
-// Sistema di notifiche migliorato
-function showNotification(type, message) {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <div class="notification-content">
-            <span class="notification-icon">${getNotificationIcon(type)}</span>
-            <span class="notification-message">${message}</span>
-            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
-        </div>
-    `;
-    
-    // Aggiungi stili se non esistono
-    if (!document.getElementById('notification-styles')) {
-        const styles = document.createElement('style');
-        styles.id = 'notification-styles';
-        styles.textContent = `
-            .notification {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 10000;
-                min-width: 300px;
-                padding: 15px;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                animation: slideInRight 0.3s ease;
-            }
-            .notification.success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
-            .notification.error { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
-            .notification.info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
-            .notification.warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
-            .notification-content { display: flex; align-items: center; gap: 10px; }
-            .notification-close { background: none; border: none; font-size: 18px; cursor: pointer; margin-left: auto; }
-            @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        `;
-        document.head.appendChild(styles);
-    }
-    
-    document.body.appendChild(notification);
-    
-    // Rimuovi automaticamente dopo 5 secondi
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
-    }, 5000);
-}
-
-function getNotificationIcon(type) {
-    const icons = {
-        success: '✅',
-        error: '❌',
-        info: 'ℹ️',
-        warning: '⚠️'
-    };
-    return icons[type] || 'ℹ️';
-}
-
-// Funzioni per le fatture
-async function caricaFornitori() {
-    try {
-        const fornitori = await dbManager.loadData('fornitori');
-        const fornitoreSelect = document.getElementById('fornitore');
-        const filtroFornitore = document.getElementById('filtroFornitore');
-        
-        if (fornitoreSelect) {
-            fornitoreSelect.innerHTML = '<option value="">Seleziona fornitore...</option>';
-            fornitori.forEach(f => {
-                fornitoreSelect.innerHTML += `<option value="${f.nome}">${f.nome}</option>`;
-            });
-        }
-        
-        if (filtroFornitore) {
-            filtroFornitore.innerHTML = '<option value="">Tutti i fornitori</option>';
-            fornitori.forEach(f => {
-                filtroFornitore.innerHTML += `<option value="${f.nome}">${f.nome}</option>`;
-            });
-        }
-        
-        const fornitoriList = document.getElementById('fornitoriList');
-        if (fornitoriList) {
-            fornitoriList.innerHTML = fornitori.map(f => `
-                <div class="fornitore-tag">
-                    ${f.nome}
-                    <button class="remove-btn" onclick="rimuoviFornitore('${f.id}')">×</button>
-                </div>
-            `).join('');
-        }
-    } catch (error) {
-        console.error('Errore caricamento fornitori:', error);
-        showNotification('error', 'Errore nel caricamento dei fornitori');
-    }
-}
-
-async function aggiungiFornitore() {
-    const nome = document.getElementById('nuovoFornitore')?.value.trim();
-    if (!nome) return;
-    
-    try {
-        const nuovoFornitore = {
-            nome: nome,
-            created_at: new Date().toISOString()
-        };
-        
-        await dbManager.saveData('fornitori', nuovoFornitore);
-        document.getElementById('nuovoFornitore').value = '';
-        await caricaFornitori();
-        showNotification('success', 'Fornitore aggiunto con successo!');
-    } catch (error) {
-        console.error('Errore aggiunta fornitore:', error);
-        showNotification('error', 'Errore nell\'aggiunta del fornitore');
-    }
-}
-
-async function rimuoviFornitore(id) {
-    try {
-        await dbManager.deleteData('fornitori', id);
-        await caricaFornitori();
-        showNotification('success', 'Fornitore rimosso con successo!');
-    } catch (error) {
-        console.error('Errore rimozione fornitore:', error);
-        showNotification('error', 'Errore nella rimozione del fornitore');
-    }
-}
-
-async function salvaFattura(e) {
-    e.preventDefault();
-    
-    const formData = {
-        fornitore: document.getElementById('fornitore').value,
-        importo: parseFloat(document.getElementById('importo').value),
-        descrizione: document.getElementById('descrizione').value,
-        data: document.getElementById('dataFattura').value,
-        scadenza: document.getElementById('scadenza').value,
-        modalitaPagamento: document.getElementById('modalitaPagamento').value,
-        stato: document.getElementById('stato').value,
-        created_at: new Date().toISOString()
-    };
-    
-    try {
-        await dbManager.saveData('fatture', formData);
-        document.getElementById('fatturaForm').reset();
-        await mostraFatture();
-        showNotification('success', 'Fattura salvata con successo!');
-    } catch (error) {
-        console.error('Errore salvataggio fattura:', error);
-        showNotification('error', 'Errore nel salvataggio della fattura');
-    }
-}
-
-async function mostraFatture() {
-    try {
-        const fatture = await dbManager.loadData('fatture');
-        const container = document.getElementById('fattureList');
-        
-        if (!container) return;
-        
-        // Applica filtri
-        const filtroStato = document.getElementById('filtroStato')?.value || '';
-        const filtroFornitore = document.getElementById('filtroFornitore')?.value || '';
-        const filtroRicerca = document.getElementById('filtroRicerca')?.value.toLowerCase() || '';
-        
-        let fattureFiltrate = fatture.filter(f => {
-            const matchStato = !filtroStato || f.stato === filtroStato;
-            const matchFornitore = !filtroFornitore || f.fornitore === filtroFornitore;
-            const matchRicerca = !filtroRicerca || f.descrizione.toLowerCase().includes(filtroRicerca);
-            return matchStato && matchFornitore && matchRicerca;
-        });
-        
-        if (fattureFiltrate.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nessuna fattura trovata</div>';
-            return;
-        }
-        
-        container.innerHTML = fattureFiltrate.map(fattura => {
-            const isScaduta = fattura.stato === 'da pagare' && new Date(fattura.scadenza) < new Date();
-            const statusClass = isScaduta ? 'scaduta' : fattura.stato.replace(' ', '-');
-            
-            return `
-                <div class="fattura-card ${statusClass}">
-                    <div class="fattura-header">
-                        <div class="fattura-fornitore">${fattura.fornitore}</div>
-                        <div class="fattura-importo">€${fattura.importo.toFixed(2)}</div>
-                    </div>
-                    <div class="fattura-status ${statusClass}">${isScaduta ? 'SCADUTA' : fattura.stato.toUpperCase()}</div>
-                    <div class="fattura-details">
-                        <div class="fattura-detail">
-                            <div class="fattura-detail-label">Descrizione</div>
-                            <div class="fattura-detail-value">${fattura.descrizione}</div>
-                        </div>
-                        <div class="fattura-detail">
-                            <div class="fattura-detail-label">Data Fattura</div>
-                            <div class="fattura-detail-value">${new Date(fattura.data).toLocaleDateString('it-IT')}</div>
-                        </div>
-                        <div class="fattura-detail">
-                            <div class="fattura-detail-label">Scadenza</div>
-                            <div class="fattura-detail-value">${new Date(fattura.scadenza).toLocaleDateString('it-IT')}</div>
-                        </div>
-                        <div class="fattura-detail">
-                            <div class="fattura-detail-label">Pagamento</div>
-                            <div class="fattura-detail-value">${fattura.modalitaPagamento}</div>
-                        </div>
-                    </div>
-                    <div class="fattura-actions">
-                        <button class="btn-edit" onclick="modificaFattura('${fattura.id}')">✏️ Modifica</button>
-                        <button class="btn-delete" onclick="eliminaFattura('${fattura.id}')">🗑️ Elimina</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (error) {
-        console.error('Errore visualizzazione fatture:', error);
-        showNotification('error', 'Errore nel caricamento delle fatture');
-    }
-}
-
-async function eliminaFattura(id) {
-    if (!confirm('Sei sicuro di voler eliminare questa fattura?')) return;
-    
-    try {
-        await dbManager.deleteData('fatture', id);
-        await mostraFatture();
-        showNotification('success', 'Fattura eliminata con successo!');
-    } catch (error) {
-        console.error('Errore eliminazione fattura:', error);
-        showNotification('error', 'Errore nell\'eliminazione della fattura');
-    }
-}
-
-function modificaFattura(id) {
-    showNotification('info', 'Funzione modifica in sviluppo!');
-}
-
-function resetFatturaForm() {
-    document.getElementById('fatturaForm').reset();
-}
-
-// Funzioni per le ricorrenze
-async function salvaRicorrenza(e) {
-    e.preventDefault();
-    
-    const formData = {
-        tipo: document.getElementById('tipoRicorrenza').value,
-        nome: document.getElementById('nomeRicorrenza').value,
-        importo: parseFloat(document.getElementById('importoRicorrenza').value),
-        frequenza: document.getElementById('frequenzaRicorrenza').value,
-        created_at: new Date().toISOString()
-    };
-    
-    try {
-        await dbManager.saveData('ricorrenze', formData);
-        document.getElementById('ricorrenzaForm').reset();
-        await mostraRicorrenze();
-        showNotification('success', 'Ricorrenza salvata con successo!');
-    } catch (error) {
-        console.error('Errore salvataggio ricorrenza:', error);
-        showNotification('error', 'Errore nel salvataggio della ricorrenza');
-    }
-}
-
-async function mostraRicorrenze() {
-    try {
-        const ricorrenze = await dbManager.loadData('ricorrenze');
-        const container = document.getElementById('ricorrenzeList');
-        
-        if (!container) return;
-        
-        if (ricorrenze.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nessuna ricorrenza configurata</div>';
-            return;
-        }
-        
-        container.innerHTML = ricorrenze.map(r => `
-            <div class="ricorrenza-item">
-                <b>${r.nome}</b> - ${r.tipo === 'entrata' ? '💰' : '📤'} €${r.importo.toFixed(2)} 
-                (${r.frequenza})
-                <button class="btn-delete" onclick="eliminaRicorrenza('${r.id}')" style="float: right; margin-left: 10px;">🗑️</button>
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Errore visualizzazione ricorrenze:', error);
-        showNotification('error', 'Errore nel caricamento delle ricorrenze');
-    }
-}
-
-async function eliminaRicorrenza(id) {
-    if (!confirm('Sei sicuro di voler eliminare questa ricorrenza?')) return;
-    
-    try {
-        await dbManager.deleteData('ricorrenze', id);
-        await mostraRicorrenze();
-        showNotification('success', 'Ricorrenza eliminata con successo!');
-    } catch (error) {
-        console.error('Errore eliminazione ricorrenza:', error);
-        showNotification('error', 'Errore nell\'eliminazione della ricorrenza');
-    }
-}
-
-// Modifica delle funzioni di raccolta dati per il dashboard
-async function raccogliDatiFinanziari(start, end) {
-    try {
-        // Carica chiusure cassa
-        const chiusure = await dbManager.loadData('chiusure_cassa');
-        const chiusureFiltrate = chiusure.filter(c => {
-            const d = new Date(c.data);
-            return d >= start && d <= end;
-        });
-
-        // Carica fatture
-        const fatture = await dbManager.loadData('fatture');
-        const fattureFiltrate = fatture.filter(f => {
-            const d = new Date(f.data);
-            return d >= start && d <= end;
-        });
-
-        // Carica ricorrenze
-        const ricorrenze = await dbManager.loadData('ricorrenze');
-
-        const ricaviCassa = chiusureFiltrate.reduce((sum, c) => sum + (c.scontrinatoTotale || 0), 0);
-        const entrateRicorrenti = calcolaRicorrenze(ricorrenze, 'entrata', start, end);
-        const usciteRicorrenti = calcolaRicorrenze(ricorrenze, 'uscita', start, end);
-        
-        const fatturepagate = fattureFiltrate.filter(f => f.stato === 'pagata').reduce((sum, f) => sum + f.importo, 0);
-        const fatturePendenti = fattureFiltrate.filter(f => f.stato === 'da pagare').reduce((sum, f) => sum + f.importo, 0);
-        const fattureScadute = fattureFiltrate.filter(f => {
-            const scadenza = new Date(f.scadenza);
-            return f.stato === 'da pagare' && scadenza < new Date();
-        }).reduce((sum, f) => sum + f.importo, 0);
-
-        const totaleEntrate = ricaviCassa + entrateRicorrenti;
-        const totaleUscite = fatturepagate + usciteRicorrenti;
-        const utileNetto = totaleEntrate - totaleUscite;
-        
-        const ivaVendite = ricaviCassa * 0.22;
-        const ivaAcquisti = fatturepagate * 0.22;
-        const ivaNettaDaVersare = Math.max(0, ivaVendite - ivaAcquisti);
-
-        return {
-            chiusure: chiusureFiltrate,
-            fatture: fattureFiltrate,
-            ricorrenze,
-            ricaviCassa,
-            entrateRicorrenti,
-            usciteRicorrenti,
-            fatturepagate,
-            fatturePendenti,
-            fattureScadute,
-            totaleEntrate,
-            totaleUscite,
-            utileNetto,
-            ivaVendite,
-            ivaAcquisti,
-            ivaNettaDaVersare,
-            start,
-            end
-        };
-    } catch (error) {
-        console.error('Errore raccolta dati finanziari:', error);
-        return {
-            chiusure: [],
-            fatture: [],
-            ricorrenze: [],
-            ricaviCassa: 0,
-            entrateRicorrenti: 0,
-            usciteRicorrenti: 0,
-            fatturepagate: 0,
-            fatturePendenti: 0,
-            fattureScadute: 0,
-            totaleEntrate: 0,
-            totaleUscite: 0,
-            utileNetto: 0,
-            ivaVendite: 0,
-            ivaAcquisti: 0,
-            ivaNettaDaVersare: 0,
-            start,
-            end
-        };
-    }
-}
-
-// Resto del codice JavaScript originale
+// TUTTO IL TUO CODICE ORIGINALE RIMANE IDENTICO DA QUI:
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.onclick = function() {
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         document.querySelectorAll('.main-section').forEach(sec => sec.classList.remove('active'));
         document.getElementById(btn.dataset.section + '-section').classList.add('active');
-        
         if(btn.dataset.section === 'dashboard') aggiornaDashboardAvanzata();
         if(btn.dataset.section === 'calendario') {
             if (window.calendarChiusure) window.calendarChiusure.render();
@@ -547,42 +133,23 @@ function updateModernDateTime() {
     const now = new Date();
     const dateEl = document.getElementById('modernDate');
     const timeEl = document.getElementById('modernTime');
-    
     if (!dateEl || !timeEl) return;
-    
-    const optionsDate = {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    };
+    const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     dateEl.textContent = now.toLocaleDateString('it-IT', optionsDate);
-    
-    const optionsTime = {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    };
+    const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
     timeEl.textContent = now.toLocaleTimeString('it-IT', optionsTime);
-    
     updateTodayRevenue();
 }
 
-async function updateTodayRevenue() {
+function updateTodayRevenue() {
     const today = new Date().toISOString().split('T')[0];
+    const todayData = localStorage.getItem(`chiusura_${today}`);
     const revenueEl = document.getElementById('todayRevenue');
-    
     if (revenueEl) {
-        try {
-            const chiusure = await dbManager.loadData('chiusure_cassa');
-            const todayData = chiusure.find(c => c.data === today);
-            
-            if (todayData) {
-                revenueEl.textContent = `€${(todayData.scontrinatoTotale || 0).toFixed(0)}`;
-            } else {
-                revenueEl.textContent = '€0';
-            }
-        } catch (error) {
+        if (todayData) {
+            const data = JSON.parse(todayData);
+            revenueEl.textContent = `€${(data.scontrinatoTotale || 0).toFixed(0)}`;
+        } else {
             revenueEl.textContent = '€0';
         }
     }
@@ -594,7 +161,6 @@ function backupData() {
         const key = localStorage.key(i);
         allData[key] = localStorage.getItem(key);
     }
-    
     const dataStr = JSON.stringify(allData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -603,7 +169,6 @@ function backupData() {
     a.download = `backup_gestionale_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    
     showNotification('success', 'Backup completato con successo!');
 }
 
@@ -624,13 +189,10 @@ let dashboardCharts = {};
 function getPeriodoDateRange(period, year = new Date().getFullYear()) {
     const now = new Date();
     let start, end;
-    
     if (period === 'week') {
         const day = now.getDay() || 7;
-        start = new Date(now);
-        start.setDate(now.getDate() - day + 1);
-        end = new Date(now);
-        end.setDate(start.getDate() + 6);
+        start = new Date(now); start.setDate(now.getDate() - day + 1);
+        end = new Date(now); end.setDate(start.getDate() + 6);
     } else if (period === 'month') {
         start = new Date(year, now.getMonth(), 1);
         end = new Date(year, now.getMonth() + 1, 0);
@@ -645,16 +207,14 @@ function getPeriodoDateRange(period, year = new Date().getFullYear()) {
         start = new Date(2000, 0, 1);
         end = new Date(2100, 0, 1);
     }
-    
     return {start, end};
 }
 
-async function aggiornaDashboardAvanzata() {
+function aggiornaDashboardAvanzata() {
     const period = document.getElementById('dashboardPeriod')?.value || 'month';
     const year = parseInt(document.getElementById('dashboardYear')?.value || new Date().getFullYear());
     const {start, end} = getPeriodoDateRange(period, year);
-    
-    const datiFinanziari = await raccogliDatiFinanziari(start, end);
+    const datiFinanziari = raccogliDatiFinanziari(start, end);
     aggiornaKPI(datiFinanziari);
     aggiornaSezioniDettagliate(datiFinanziari);
     aggiornaGrafici(datiFinanziari, period, year);
@@ -662,10 +222,46 @@ async function aggiornaDashboardAvanzata() {
     calcolaPrevisioni(datiFinanziari);
 }
 
+function raccogliDatiFinanziari(start, end) {
+    let chiusure = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('chiusura_')) {
+            try {
+                const data = JSON.parse(localStorage.getItem(key));
+                const d = new Date(data.data);
+                if (d >= start && d <= end) chiusure.push(data);
+            } catch (e) {}
+        }
+    }
+    let fatture = JSON.parse(localStorage.getItem('fatture') || '[]');
+    fatture = fatture.filter(f => new Date(f.data) >= start && new Date(f.data) <= end);
+    let ricorrenze = JSON.parse(localStorage.getItem('ricorrenze') || '[]');
+    const ricaviCassa = chiusure.reduce((sum, c) => sum + (c.scontrinatoTotale || 0), 0);
+    const entrateRicorrenti = calcolaRicorrenze(ricorrenze, 'entrata', start, end);
+    const usciteRicorrenti = calcolaRicorrenze(ricorrenze, 'uscita', start, end);
+    const fatturepagate = fatture.filter(f => f.stato === 'pagata').reduce((sum, f) => sum + f.importo, 0);
+    const fatturePendenti = fatture.filter(f => f.stato === 'da pagare').reduce((sum, f) => sum + f.importo, 0);
+    const fattureScadute = fatture.filter(f => {
+        const scadenza = new Date(f.scadenza);
+        return f.stato === 'da pagare' && scadenza < new Date();
+    }).reduce((sum, f) => sum + f.importo, 0);
+    const totaleEntrate = ricaviCassa + entrateRicorrenti;
+    const totaleUscite = fatturepagate + usciteRicorrenti;
+    const utileNetto = totaleEntrate - totaleUscite;
+    const ivaVendite = ricaviCassa * 0.22;
+    const ivaAcquisti = fatturepagate * 0.22;
+    const ivaNettaDaVersare = Math.max(0, ivaVendite - ivaAcquisti);
+    return {
+        chiusure, fatture, ricorrenze, ricaviCassa, entrateRicorrenti, usciteRicorrenti,
+        fatturepagate, fatturePendenti, fattureScadute, totaleEntrate, totaleUscite,
+        utileNetto, ivaVendite, ivaAcquisti, ivaNettaDaVersare, start, end
+    };
+}
+
 function calcolaRicorrenze(ricorrenze, tipo, start, end) {
     let totale = 0;
     const giorni = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    
     ricorrenze.filter(r => r.tipo === tipo).forEach(r => {
         let occorrenze = 0;
         if (r.frequenza === 'mensile') {
@@ -677,7 +273,6 @@ function calcolaRicorrenze(ricorrenze, tipo, start, end) {
         }
         totale += r.importo * occorrenze;
     });
-    
     return totale;
 }
 
@@ -686,7 +281,6 @@ function aggiornaKPI(dati) {
     const totalExpenses = document.getElementById('totalExpenses');
     const netProfit = document.getElementById('netProfit');
     const vatToPay = document.getElementById('vatToPay');
-    
     if (totalRevenue) totalRevenue.textContent = `€${dati.totaleEntrate.toFixed(2)}`;
     if (totalExpenses) totalExpenses.textContent = `€${dati.totaleUscite.toFixed(2)}`;
     if (netProfit) netProfit.textContent = `€${dati.utileNetto.toFixed(2)}`;
@@ -705,7 +299,6 @@ function aggiornaSezioniDettagliate(dati) {
         'purchaseVat': dati.ivaAcquisti,
         'netVat': dati.ivaNettaDaVersare
     };
-    
     Object.entries(elements).forEach(([id, value]) => {
         const el = document.getElementById(id);
         if (el) el.textContent = `€${value.toFixed(2)}`;
@@ -715,11 +308,9 @@ function aggiornaSezioniDettagliate(dati) {
 function calcolaPrevisioni(dati) {
     const obiettivo = 50000;
     const raggiuntoPerc = Math.min(100, (dati.totaleEntrate / obiettivo) * 100);
-    
     const monthlyTarget = document.getElementById('monthlyTarget');
     const targetAchievement = document.getElementById('targetAchievement');
     const targetProgress = document.getElementById('targetProgress');
-    
     if (monthlyTarget) monthlyTarget.textContent = `€${obiettivo.toLocaleString()}`;
     if (targetAchievement) targetAchievement.textContent = `${raggiuntoPerc.toFixed(1)}%`;
     if (targetProgress) targetProgress.style.width = `${raggiuntoPerc}%`;
@@ -729,7 +320,6 @@ function aggiornaGrafici(dati, period, year) {
     Object.values(dashboardCharts).forEach(chart => {
         if (chart && chart.destroy) chart.destroy();
     });
-    
     if (typeof Chart !== 'undefined') {
         creaGraficoAndamentoMensile(dati, year);
         creaGraficoDistribuzioneEntrate(dati);
@@ -741,21 +331,16 @@ function aggiornaGrafici(dati, period, year) {
 function creaGraficoAndamentoMensile(dati, year) {
     const ctx = document.getElementById('monthlyTrendChart');
     if (!ctx || typeof Chart === 'undefined') return;
-    
     const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
     const entratePerMese = new Array(12).fill(0);
     const uscitePerMese = new Array(12).fill(0);
-    
-    // Calcola dati per ogni mese
     for (let mese = 0; mese < 12; mese++) {
         const inizioMese = new Date(year, mese, 1);
         const fineMese = new Date(year, mese + 1, 0);
-        raccogliDatiFinanziari(inizioMese, fineMese).then(datiMese => {
-            entratePerMese[mese] = datiMese.totaleEntrate;
-            uscitePerMese[mese] = datiMese.totaleUscite;
-        });
+        const datiMese = raccogliDatiFinanziari(inizioMese, fineMese);
+        entratePerMese[mese] = datiMese.totaleEntrate;
+        uscitePerMese[mese] = datiMese.totaleUscite;
     }
-    
     dashboardCharts.monthlyTrend = new Chart(ctx, {
         type: 'line',
         data: {
@@ -779,19 +364,11 @@ function creaGraficoAndamentoMensile(dati, year) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top'
-                }
-            },
+            plugins: { legend: { position: 'top' } },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '€' + value.toLocaleString();
-                        }
-                    }
+                    ticks: { callback: function(value) { return '€' + value.toLocaleString(); } }
                 }
             }
         }
@@ -801,7 +378,6 @@ function creaGraficoAndamentoMensile(dati, year) {
 function creaGraficoDistribuzioneEntrate(dati) {
     const ctx = document.getElementById('revenueDistributionChart');
     if (!ctx || typeof Chart === 'undefined') return;
-    
     dashboardCharts.revenueDistribution = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -815,11 +391,7 @@ function creaGraficoDistribuzioneEntrate(dati) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
+            plugins: { legend: { position: 'bottom' } }
         }
     });
 }
@@ -827,7 +399,6 @@ function creaGraficoDistribuzioneEntrate(dati) {
 function creaGraficoAnalisiSpese(dati) {
     const ctx = document.getElementById('expensesAnalysisChart');
     if (!ctx || typeof Chart === 'undefined') return;
-    
     dashboardCharts.expensesAnalysis = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -842,19 +413,11 @@ function creaGraficoAnalisiSpese(dati) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
+            plugins: { legend: { display: false } },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '€' + value.toLocaleString();
-                        }
-                    }
+                    ticks: { callback: function(value) { return '€' + value.toLocaleString(); } }
                 }
             }
         }
@@ -864,22 +427,17 @@ function creaGraficoAnalisiSpese(dati) {
 function creaGraficoTrendIVA(dati, year) {
     const ctx = document.getElementById('vatTrendChart');
     if (!ctx || typeof Chart === 'undefined') return;
-    
     const mesi = [];
     const ivaData = [];
-    
     for (let i = 5; i >= 0; i--) {
         const data = new Date();
         data.setMonth(data.getMonth() - i);
         mesi.push(data.toLocaleDateString('it-IT', { month: 'short' }));
-        
         const inizioMese = new Date(data.getFullYear(), data.getMonth(), 1);
         const fineMese = new Date(data.getFullYear(), data.getMonth() + 1, 0);
-        raccogliDatiFinanziari(inizioMese, fineMese).then(datiMese => {
-            ivaData.push(datiMese.ivaNettaDaVersare);
-        });
+        const datiMese = raccogliDatiFinanziari(inizioMese, fineMese);
+        ivaData.push(datiMese.ivaNettaDaVersare);
     }
-    
     dashboardCharts.vatTrend = new Chart(ctx, {
         type: 'line',
         data: {
@@ -896,19 +454,11 @@ function creaGraficoTrendIVA(dati, year) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
+            plugins: { legend: { display: false } },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '€' + value.toLocaleString();
-                        }
-                    }
+                    ticks: { callback: function(value) { return '€' + value.toLocaleString(); } }
                 }
             }
         }
@@ -918,9 +468,7 @@ function creaGraficoTrendIVA(dati, year) {
 function generaAlert(dati) {
     const container = document.getElementById('alertsContainer');
     if (!container) return;
-    
     const alerts = [];
-    
     if (dati.fattureScadute > 0) {
         alerts.push({
             type: 'danger',
@@ -928,7 +476,6 @@ function generaAlert(dati) {
             message: `Hai fatture scadute per un totale di €${dati.fattureScadute.toFixed(2)}!`
         });
     }
-    
     if (dati.ivaNettaDaVersare > 5000) {
         alerts.push({
             type: 'warning',
@@ -936,7 +483,6 @@ function generaAlert(dati) {
             message: `IVA da versare elevata: €${dati.ivaNettaDaVersare.toFixed(2)}. Prossima scadenza: 16 del mese.`
         });
     }
-    
     const obiettivo = 50000;
     if (dati.totaleEntrate >= obiettivo) {
         alerts.push({
@@ -945,7 +491,6 @@ function generaAlert(dati) {
             message: `Congratulazioni! Hai raggiunto l'obiettivo mensile di €${obiettivo.toLocaleString()}!`
         });
     }
-    
     if (dati.fatturePendenti > 10000) {
         alerts.push({
             type: 'info',
@@ -953,589 +498,910 @@ function generaAlert(dati) {
             message: `Hai fatture pendenti per €${dati.fatturePendenti.toFixed(2)}. Controlla le scadenze.`
         });
     }
-    
-    container.innerHTML = alerts.length > 0 ? alerts.map(alert => `
-        <div class="alert ${alert.type}">
-            <span class="alert-icon">${alert.icon}</span>
-            <span class="alert-message">${alert.message}</span>
-        </div>
-    `).join('') : '<div class="empty-state">Nessun alert al momento</div>';
+    container.innerHTML = alerts.length > 0 
+        ? alerts.map(alert => `
+            <div class="alert ${alert.type}">
+                <span>${alert.icon}</span>
+                <span>${alert.message}</span>
+            </div>
+        `).join('')
+        : '<div class="alert success"><span>✅</span><span>Tutto sotto controllo! Nessun alert da segnalare.</span></div>';
 }
 
-// Classe per il calendario delle chiusure
+let fornitori = JSON.parse(localStorage.getItem('fornitori') || '["Fornitore Esempio"]');
+function caricaFornitori() {
+    const fornitoreSelect = document.getElementById('fornitore');
+    const filtroFornitore = document.getElementById('filtroFornitore');
+    const fornitoriList = document.getElementById('fornitoriList');
+    if (fornitoreSelect) {
+        fornitoreSelect.innerHTML = '<option value="">Seleziona fornitore...</option>';
+        fornitori.forEach(f => {
+            const option = document.createElement('option');
+            option.value = f;
+            option.textContent = f;
+            fornitoreSelect.appendChild(option);
+        });
+    }
+    if (filtroFornitore) {
+        filtroFornitore.innerHTML = '<option value="">Tutti i fornitori</option>';
+        fornitori.forEach(f => {
+            const option = document.createElement('option');
+            option.value = f;
+            option.textContent = f;
+            filtroFornitore.appendChild(option);
+        });
+    }
+    if (fornitoriList) {
+        fornitoriList.innerHTML = fornitori.map(f => `
+            <div class="fornitore-tag">
+                ${f}
+                <button class="remove-btn" onclick="rimuoviFornitore('${f}')">&times;</button>
+            </div>
+        `).join('');
+    }
+}
+function aggiungiFornitore() {
+    const input = document.getElementById('nuovoFornitore');
+    const nome = input.value.trim();
+    if (nome && !fornitori.includes(nome)) {
+        fornitori.push(nome);
+        localStorage.setItem('fornitori', JSON.stringify(fornitori));
+        caricaFornitori();
+        input.value = '';
+        showNotification('success', `Fornitore "${nome}" aggiunto con successo!`);
+    } else if (fornitori.includes(nome)) {
+        showNotification('warning', 'Fornitore già esistente!');
+    }
+}
+function rimuoviFornitore(nome) {
+    if (confirm(`Rimuovere il fornitore "${nome}"?`)) {
+        fornitori = fornitori.filter(f => f !== nome);
+        localStorage.setItem('fornitori', JSON.stringify(fornitori));
+        caricaFornitori();
+        mostraFatture();
+        showNotification('info', `Fornitore "${nome}" rimosso.`);
+    }
+}
+
+let fatture = JSON.parse(localStorage.getItem('fatture') || '[]');
+let fatturaInModifica = null;
+function salvaFattura(e) {
+    e.preventDefault();
+    const id = document.getElementById('fatturaId').value || Date.now();
+    const nuovaFattura = {
+        id,
+        fornitore: document.getElementById('fornitore').value,
+        importo: parseFloat(document.getElementById('importoFattura').value),
+        descrizione: document.getElementById('descrizioneFattura').value,
+        data: document.getElementById('dataFattura').value,
+        scadenza: document.getElementById('scadenzaFattura').value,
+        modalita: document.getElementById('modalitaPagamento').value,
+        stato: document.getElementById('statoFattura').value,
+        dataCreazione: fatturaInModifica ? fatturaInModifica.dataCreazione : new Date().toISOString()
+    };
+    const idx = fatture.findIndex(f => f.id == id);
+    if (idx > -1) {
+        fatture[idx] = nuovaFattura;
+        showNotification('success', 'Fattura aggiornata con successo!');
+    } else {
+        fatture.push(nuovaFattura);
+        showNotification('success', 'Fattura salvata con successo!');
+    }
+    localStorage.setItem('fatture', JSON.stringify(fatture));
+    mostraFatture();
+    resetFatturaForm();
+    if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+        aggiornaDashboardAvanzata();
+    }
+}
+function modificaFattura(id) {
+    const fattura = fatture.find(f => f.id == id);
+    if (!fattura) return;
+    fatturaInModifica = fattura;
+    document.getElementById('fatturaId').value = fattura.id;
+    document.getElementById('fornitore').value = fattura.fornitore;
+    document.getElementById('importoFattura').value = fattura.importo;
+    document.getElementById('descrizioneFattura').value = fattura.descrizione;
+    document.getElementById('dataFattura').value = fattura.data;
+    document.getElementById('scadenzaFattura').value = fattura.scadenza;
+    document.getElementById('modalitaPagamento').value = fattura.modalita;
+    document.getElementById('statoFattura').value = fattura.stato;
+    document.getElementById('fatturaForm').scrollIntoView({ behavior: 'smooth' });
+    showNotification('info', 'Fattura caricata per la modifica');
+}
+function eliminaFattura(id) {
+    const fattura = fatture.find(f => f.id == id);
+    if (!fattura) return;
+    if (confirm(`Eliminare la fattura di ${fattura.fornitore} per €${fattura.importo.toFixed(2)}?`)) {
+        fatture = fatture.filter(f => f.id != id);
+        localStorage.setItem('fatture', JSON.stringify(fatture));
+        mostraFatture();
+        showNotification('info', 'Fattura eliminata');
+        if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+            aggiornaDashboardAvanzata();
+        }
+    }
+}
+function resetFatturaForm() {
+    document.getElementById('fatturaForm').reset();
+    document.getElementById('fatturaId').value = '';
+    fatturaInModifica = null;
+}
+
+function mostraFatture() {
+    const list = document.getElementById('fattureList');
+    if (!list) return;
+    let fattureFiltered = [...fatture];
+    const filtroStato = document.getElementById('filtroStato')?.value;
+    const filtroFornitore = document.getElementById('filtroFornitore')?.value;
+    const filtroRicerca = document.getElementById('filtroRicerca')?.value.toLowerCase();
+    if (filtroStato) {
+        fattureFiltered = fattureFiltered.filter(f => f.stato === filtroStato);
+    }
+    if (filtroFornitore) {
+        fattureFiltered = fattureFiltered.filter(f => f.fornitore === filtroFornitore);
+    }
+    if (filtroRicerca) {
+        fattureFiltered = fattureFiltered.filter(f => 
+            f.descrizione.toLowerCase().includes(filtroRicerca) ||
+            f.fornitore.toLowerCase().includes(filtroRicerca)
+        );
+    }
+    if (fattureFiltered.length === 0) {
+        list.innerHTML = '<div class="empty-state">📄 Nessuna fattura trovata</div>';
+        return;
+    }
+    fattureFiltered.sort((a, b) => new Date(b.data) - new Date(a.data));
+    list.innerHTML = fattureFiltered.map(f => {
+        const dataScadenza = new Date(f.scadenza);
+        const oggi = new Date();
+        const isScaduta = dataScadenza < oggi && f.stato === 'da pagare';
+        const statusClass = f.stato === 'pagata' ? 'pagata' : (isScaduta ? 'scaduta' : 'da-pagare');
+        const cardClass = f.stato === 'pagata' ? 'pagata' : (isScaduta ? 'scaduta' : '');
+        return `
+            <div class="fattura-card ${cardClass}">
+                <div class="fattura-status ${statusClass}">
+                    ${f.stato === 'pagata' ? '✅ Pagata' : (isScaduta ? '🚨 Scaduta' : '⏳ Da Pagare')}
+                </div>
+                <div class="fattura-header">
+                    <div class="fattura-fornitore">${f.fornitore}</div>
+                    <div class="fattura-importo">€${f.importo.toFixed(2)}</div>
+                </div>
+                <div class="fattura-details">
+                    <div class="fattura-detail">
+                        <div class="fattura-detail-label">Descrizione</div>
+                        <div class="fattura-detail-value">${f.descrizione || 'N/A'}</div>
+                    </div>
+                    <div class="fattura-detail">
+                        <div class="fattura-detail-label">Data Fattura</div>
+                        <div class="fattura-detail-value">${new Date(f.data).toLocaleDateString('it-IT')}</div>
+                    </div>
+                    <div class="fattura-detail">
+                        <div class="fattura-detail-label">Scadenza</div>
+                        <div class="fattura-detail-value">${new Date(f.scadenza).toLocaleDateString('it-IT')}</div>
+                    </div>
+                    <div class="fattura-detail">
+                        <div class="fattura-detail-label">Pagamento</div>
+                        <div class="fattura-detail-value">${f.modalita}</div>
+                    </div>
+                </div>
+                <div class="fattura-actions">
+                    <button class="btn-edit" onclick="modificaFattura(${f.id})">✏️ Modifica</button>
+                    <button class="btn-delete" onclick="eliminaFattura(${f.id})">🗑️ Elimina</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+let ricorrenze = JSON.parse(localStorage.getItem('ricorrenze') || '[]');
+function salvaRicorrenza(e) {
+    e.preventDefault();
+    const id = document.getElementById('ricorrenzaId').value || Date.now();
+    const nuovaRic = {
+        id,
+        tipo: document.getElementById('tipoRicorrenza').value,
+        nome: document.getElementById('nomeRicorrenza').value,
+        importo: parseFloat(document.getElementById('importoRicorrenza').value),
+        frequenza: document.getElementById('frequenzaRicorrenza').value
+    };
+    const idx = ricorrenze.findIndex(r => r.id == id);
+    if (idx > -1) ricorrenze[idx] = nuovaRic; else ricorrenze.push(nuovaRic);
+    localStorage.setItem('ricorrenze', JSON.stringify(ricorrenze));
+    mostraRicorrenze();
+    e.target.reset();
+    if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+        aggiornaDashboardAvanzata();
+    }
+}
+function mostraRicorrenze() {
+    const list = document.getElementById('ricorrenzeList');
+    if (list) {
+        list.innerHTML = ricorrenze.length
+            ? ricorrenze.map(r => `<div class="ricorrenza-item">
+                <b>${r.tipo == 'entrata' ? 'Entrata' : 'Uscita'}</b>: ${r.nome} - €${r.importo.toFixed(2)} (${r.frequenza})
+            </div>`).join('')
+            : '<em>Nessuna ricorrenza registrata</em>';
+    }
+}
+
+function showNotification(type, message) {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()">&times;</button>
+    `;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideInRight 0.3s ease;
+        background: ${type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : '#17a2b8'};
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 4000);
+}
+
+function aggiornaDataOra() {
+    const now = new Date();
+    const dateEl = document.getElementById('currentDate');
+    const timeEl = document.getElementById('currentTime');
+    if (dateEl) {
+        dateEl.textContent = now.toLocaleDateString('it-IT', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+    }
+    if (timeEl) {
+        timeEl.textContent = now.toLocaleTimeString('it-IT');
+    }
+}
+
 class CalendarChiusure {
     constructor() {
         this.currentDate = new Date();
         this.selectedDate = null;
+        window.calendarChiusure = this;
         this.init();
     }
-
     init() {
+        this.grid = document.getElementById('calendarGrid');
+        this.monthLabel = document.getElementById('calendarMonth');
+        this.details = document.getElementById('calendarDetails');
+        this.detailsContent = document.getElementById('calendarDetailsContent');
+        if (!this.grid || !this.monthLabel) return;
+        const prevBtn = document.getElementById('prevMonth');
+        const nextBtn = document.getElementById('nextMonth');
+        const printBtn = document.getElementById('printClosure');
+        const exportBtn = document.getElementById('exportClosure');
+        if (prevBtn) prevBtn.onclick = () => this.changeMonth(-1);
+        if (nextBtn) nextBtn.onclick = () => this.changeMonth(1);
+        if (printBtn) printBtn.onclick = () => window.print();
+        if (exportBtn) exportBtn.onclick = () => this.exportClosure();
         this.render();
-        this.bindEvents();
     }
-
-    bindEvents() {
-        const modal = document.getElementById('messageModal');
-        const closeBtn = modal?.querySelector('.close');
-        
-        if (closeBtn) {
-            closeBtn.onclick = () => {
-                modal.style.display = 'none';
-            };
-        }
-        
-        if (modal) {
-            window.onclick = (event) => {
-                if (event.target === modal) {
-                    modal.style.display = 'none';
-                }
-            };
-        }
-    }
-
     render() {
-        this.updateMonthDisplay();
-        this.generateCalendar();
-    }
-
-    updateMonthDisplay() {
-        const monthEl = document.getElementById('calendarMonth');
-        if (monthEl) {
-            monthEl.textContent = this.currentDate.toLocaleDateString('it-IT', {
-                month: 'long',
-                year: 'numeric'
-            });
-        }
-    }
-
-    async generateCalendar() {
-        const grid = document.getElementById('calendarGrid');
-        if (!grid) return;
-
+        if (!this.grid || !this.monthLabel) return;
         const year = this.currentDate.getFullYear();
         const month = this.currentDate.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const startDate = new Date(firstDay);
-        startDate.setDate(startDate.getDate() - firstDay.getDay());
-
-        let html = '';
-        
-        // Headers
-        const dayHeaders = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
-        dayHeaders.forEach(day => {
-            html += `<div class="calendar-header">${day}</div>`;
+        this.monthLabel.textContent = this.currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+        const days = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+        this.grid.innerHTML = '';
+        days.forEach(d => {
+            const el = document.createElement('div');
+            el.className = 'calendar-header';
+            el.textContent = d;
+            this.grid.appendChild(el);
         });
-
-        // Carica i dati delle chiusure per il mese
-        const chiusure = await dbManager.loadData('chiusure_cassa');
-        const chiusureMap = {};
-        chiusure.forEach(c => {
-            chiusureMap[c.data] = c;
-        });
-
-        // Days
-        const today = new Date();
-        for (let i = 0; i < 42; i++) {
-            const date = new Date(startDate);
-            date.setDate(startDate.getDate() + i);
-            
+        const first = new Date(year, month, 1);
+        const startDay = (first.getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let i = 0; i < startDay; i++) {
+            const el = document.createElement('div');
+            el.className = 'calendar-day other-month';
+            this.grid.appendChild(el);
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month, d);
             const dateKey = date.toISOString().split('T')[0];
-            const isCurrentMonth = date.getMonth() === month;
-            const isToday = date.toDateString() === today.toDateString();
-            const hasData = chiusureMap[dateKey];
-            
-            let classes = ['calendar-day'];
-            if (!isCurrentMonth) classes.push('other-month');
-            if (isToday) classes.push('today');
-            if (hasData) classes.push('has-data');
-            
-            html += `<div class="${classes.join(' ')}" data-date="${dateKey}" onclick="window.calendarChiusure.selectDate('${dateKey}')">
-                ${date.getDate()}
-            </div>`;
+            const el = document.createElement('div');
+            el.className = 'calendar-day';
+            if (this.isToday(date)) el.classList.add('today');
+            if (localStorage.getItem(`chiusura_${dateKey}`)) el.classList.add('has-data');
+            el.textContent = d;
+            el.onclick = () => this.showDetails(date);
+            this.grid.appendChild(el);
         }
-
-        grid.innerHTML = html;
     }
-
-    async selectDate(dateKey) {
-        const chiusure = await dbManager.loadData('chiusure_cassa');
-        const chiusura = chiusure.find(c => c.data === dateKey);
-        
-        if (chiusura) {
-            this.showDetails(chiusura);
+    changeMonth(delta) {
+        const newMonth = this.currentDate.getMonth() + delta;
+        const newYear = this.currentDate.getFullYear();
+        if (newMonth < 0) {
+            this.currentDate = new Date(newYear - 1, 11, 1);
+        } else if (newMonth > 11) {
+            this.currentDate = new Date(newYear + 1, 0, 1);
         } else {
-            this.showMessage(`Nessuna chiusura registrata per il ${new Date(dateKey).toLocaleDateString('it-IT')}`);
+            this.currentDate = new Date(newYear, newMonth, 1);
         }
-    }
-
-    showDetails(chiusura) {
-        const detailsEl = document.getElementById('calendarDetails');
-        const contentEl = document.getElementById('detailsContent');
-        
-        if (detailsEl && contentEl) {
-            const content = `
-Data: ${new Date(chiusura.data).toLocaleDateString('it-IT')}
-Scontrinato Totale: €${(chiusura.scontrinatoTotale || 0).toFixed(2)}
-Scontrinato Contanti: €${(chiusura.scontrinatoContanti || 0).toFixed(2)}
-Scontrinato POS: €${(chiusura.scontrinatoPos || 0).toFixed(2)}
-Art. 74: €${(chiusura.art74 || 0).toFixed(2)}
-Art. 22: €${(chiusura.art22 || 0).toFixed(2)}
-Drop POS: €${(chiusura.dropPos || 0).toFixed(2)}
-Drop Cash: €${(chiusura.dropCash || 0).toFixed(2)}
-Fondo Cassa: €${(chiusura.fondoCassa || 0).toFixed(2)}
-            `;
-            
-            contentEl.textContent = content;
-            detailsEl.style.display = 'block';
-        }
-    }
-
-    showMessage(message) {
-        const modal = document.getElementById('messageModal');
-        const modalBody = document.getElementById('modalBody');
-        
-        if (modal && modalBody) {
-            modalBody.innerHTML = `<p>${message}</p>`;
-            modal.style.display = 'block';
-        }
-    }
-
-    previousMonth() {
-        this.currentDate.setMonth(this.currentDate.getMonth() - 1);
         this.render();
+        if (this.details) this.details.style.display = 'none';
     }
-
-    nextMonth() {
-        this.currentDate.setMonth(this.currentDate.getMonth() + 1);
-        this.render();
+    isToday(date) {
+        const now = new Date();
+        return date.getDate() === now.getDate() &&
+               date.getMonth() === now.getMonth() &&
+               date.getFullYear() === now.getFullYear();
     }
-
-    printDetails() {
-        const content = document.getElementById('detailsContent')?.textContent;
-        if (content) {
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html>
-                    <head><title>Dettagli Chiusura</title></head>
-                    <body>
-                        <h1>Dettagli Chiusura Cassa</h1>
-                        <pre>${content}</pre>
-                    </body>
-                </html>
-            `);
-            printWindow.print();
+    showDetails(date) {
+        const dateKey = date.toISOString().split('T')[0];
+        const data = localStorage.getItem(`chiusura_${dateKey}`);
+        if (!data) {
+            if (this.details) this.details.style.display = 'none';
+            return;
         }
-    }
-
-    exportDetails() {
-        const content = document.getElementById('detailsContent')?.textContent;
-        if (content) {
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `chiusura_${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
+        const chiusura = JSON.parse(data);
+        if (this.detailsContent) {
+            this.detailsContent.textContent = `
+Data: ${date.toLocaleDateString('it-IT')}
+Scontrinato Totale: €${chiusura.scontrinatoTotale?.toFixed(2) || '0.00'}
+Contanti: €${chiusura.scontrinatoContanti?.toFixed(2) || '0.00'}
+POS: €${chiusura.scontrinatoPos?.toFixed(2) || '0.00'}
+Art. 74: €${chiusura.art74?.toFixed(2) || '0.00'}
+Art. 22: €${chiusura.art22?.toFixed(2) || '0.00'}
+Drop POS: €${chiusura.dropPos?.toFixed(2) || '0.00'}
+Drop Cash: €${chiusura.dropCash?.toFixed(2) || '0.00'}
+Monete Precedenti: €${chiusura.moneteGiornoPrecedente?.toFixed(2) || '0.00'}
+Monete Attuali: €${chiusura.moneteAttuali?.toFixed(2) || '0.00'}
+Fondo Cassa: €${chiusura.fondoCassa?.toFixed(2) || '0.00'}
+Status: ${chiusura.status?.toUpperCase() || ''}
+            `.trim();
         }
+        if (this.details) this.details.style.display = 'block';
+        this.selectedDate = date;
+    }
+    exportClosure() {
+        if (!this.selectedDate) return;
+        const dateKey = this.selectedDate.toISOString().split('T')[0];
+        const data = localStorage.getItem(`chiusura_${dateKey}`);
+        if (!data) return;
+        const blob = new Blob([this.detailsContent.textContent], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `chiusura_${dateKey}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
     }
 }
 
-// Classe per il calendario nella sezione chiusura cassa
 class CassaCalendar {
     constructor() {
         this.currentDate = new Date();
-        this.selectedDate = null;
+        this.selectedDate = new Date();
+        window.cassaCalendar = this;
         this.init();
     }
-
     init() {
+        this.grid = document.getElementById('cassaCalendarGrid');
+        this.monthLabel = document.getElementById('cassaCalendarMonth');
+        this.selectedDateDisplay = document.getElementById('selectedDateDisplay');
+        if (!this.grid || !this.monthLabel) return;
+        const prevBtn = document.getElementById('cassaPrevMonth');
+        const nextBtn = document.getElementById('cassaNextMonth');
+        if (prevBtn) prevBtn.onclick = () => this.changeMonth(-1);
+        if (nextBtn) nextBtn.onclick = () => this.changeMonth(1);
         this.render();
+        this.updateSelectedDateDisplay();
     }
-
     render() {
-        this.updateMonthDisplay();
-        this.generateCalendar();
-    }
-
-    updateMonthDisplay() {
-        const monthEl = document.getElementById('cassaCalendarMonth');
-        if (monthEl) {
-            monthEl.textContent = this.currentDate.toLocaleDateString('it-IT', {
-                month: 'long',
-                year: 'numeric'
-            });
-        }
-    }
-
-    async generateCalendar() {
-        const grid = document.getElementById('cassaCalendarGrid');
-        if (!grid) return;
-
+        if (!this.grid || !this.monthLabel) return;
         const year = this.currentDate.getFullYear();
         const month = this.currentDate.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const startDate = new Date(firstDay);
-        startDate.setDate(startDate.getDate() - firstDay.getDay());
-
-        let html = '';
-        
-        // Headers
-        const dayHeaders = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
-        dayHeaders.forEach(day => {
-            html += `<div class="cassa-calendar-header">${day}</div>`;
+        this.monthLabel.textContent = this.currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+        const days = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+        this.grid.innerHTML = '';
+        days.forEach(d => {
+            const el = document.createElement('div');
+            el.className = 'cassa-calendar-header';
+            el.textContent = d;
+            this.grid.appendChild(el);
         });
-
-        // Carica i dati delle chiusure per il mese
-        const chiusure = await dbManager.loadData('chiusure_cassa');
-        const chiusureMap = {};
-        chiusure.forEach(c => {
-            chiusureMap[c.data] = c;
-        });
-
-        // Days
-        const today = new Date();
-        for (let i = 0; i < 42; i++) {
-            const date = new Date(startDate);
-            date.setDate(startDate.getDate() + i);
-            
+        const first = new Date(year, month, 1);
+        const startDay = (first.getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let i = 0; i < startDay; i++) {
+            const el = document.createElement('div');
+            el.className = 'cassa-calendar-day other-month';
+            this.grid.appendChild(el);
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month, d);
             const dateKey = date.toISOString().split('T')[0];
-            const isCurrentMonth = date.getMonth() === month;
-            const isToday = date.toDateString() === today.toDateString();
-            const hasData = chiusureMap[dateKey];
-            
-            let classes = ['cassa-calendar-day'];
-            if (!isCurrentMonth) classes.push('other-month');
-            if (isToday) classes.push('today');
-            if (hasData) classes.push('has-data');
-            if (this.selectedDate === dateKey) classes.push('selected');
-            
-            html += `<div class="${classes.join(' ')}" data-date="${dateKey}" onclick="window.cassaCalendar.selectDate('${dateKey}')">
-                ${date.getDate()}
-            </div>`;
-        }
-
-        grid.innerHTML = html;
-    }
-
-    async selectDate(dateKey) {
-        this.selectedDate = dateKey;
-        this.generateCalendar();
-        
-        const chiusure = await dbManager.loadData('chiusure_cassa');
-        const chiusura = chiusure.find(c => c.data === dateKey);
-        
-        const infoEl = document.getElementById('selectedDateInfo');
-        if (infoEl) {
-            if (chiusura) {
-                infoEl.innerHTML = `
-                    <strong>${new Date(dateKey).toLocaleDateString('it-IT')}</strong><br>
-                    Scontrinato: €${(chiusura.scontrinatoTotale || 0).toFixed(2)}<br>
-                    Fondo Cassa: €${(chiusura.fondoCassa || 0).toFixed(2)}
-                `;
-            } else {
-                infoEl.innerHTML = `
-                    <strong>${new Date(dateKey).toLocaleDateString('it-IT')}</strong><br>
-                    Nessuna chiusura registrata
-                `;
-            }
+            const el = document.createElement('div');
+            el.className = 'cassa-calendar-day';
+            if (this.isToday(date)) el.classList.add('today');
+            if (this.isSelected(date)) el.classList.add('selected');
+            if (localStorage.getItem(`chiusura_${dateKey}`)) el.classList.add('has-data');
+            el.textContent = d;
+            el.onclick = () => this.selectDate(date);
+            this.grid.appendChild(el);
         }
     }
-
-    previousMonth() {
-        this.currentDate.setMonth(this.currentDate.getMonth() - 1);
+    changeMonth(delta) {
+        const newMonth = this.currentDate.getMonth() + delta;
+        const newYear = this.currentDate.getFullYear();
+        if (newMonth < 0) {
+            this.currentDate = new Date(newYear - 1, 11, 1);
+        } else if (newMonth > 11) {
+            this.currentDate = new Date(newYear + 1, 0, 1);
+        } else {
+            this.currentDate = new Date(newYear, newMonth, 1);
+        }
         this.render();
     }
-
-    nextMonth() {
-        this.currentDate.setMonth(this.currentDate.getMonth() + 1);
+    isToday(date) {
+        const now = new Date();
+        return date.getDate() === now.getDate() &&
+               date.getMonth() === now.getMonth() &&
+               date.getFullYear() === now.getFullYear();
+    }
+    isSelected(date) {
+        return this.selectedDate &&
+               date.getDate() === this.selectedDate.getDate() &&
+               date.getMonth() === this.selectedDate.getMonth() &&
+               date.getFullYear() === this.selectedDate.getFullYear();
+    }
+    selectDate(date) {
+        this.selectedDate = new Date(date);
         this.render();
+        this.updateSelectedDateDisplay();
+        if (window.chiusuraCassaSystem) {
+            window.chiusuraCassaSystem.changeEditDate(date);
+        }
+    }
+    updateSelectedDateDisplay() {
+        if (!this.selectedDateDisplay || !this.selectedDate) return;
+        const dateStr = this.selectedDate.toLocaleDateString('it-IT', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        const isToday = this.isToday(this.selectedDate);
+        this.selectedDateDisplay.textContent = `Data selezionata: ${dateStr} ${isToday ? '(OGGI)' : ''}`;
     }
 }
 
-// Sistema di chiusura cassa
 class ChiusuraCassaSystem {
     constructor() {
-        this.init();
+        this.currentEditDate = new Date();
+        window.chiusuraCassaSystem = this;
+        this.initializeElements();
+        this.loadStoredData();
+        this.setupEventListeners();
+        this.updateDateTime();
+        this.updateCountdown();
+        setInterval(() => {
+            this.updateDateTime();
+            this.updateCountdown();
+        }, 60000);
     }
-
-    init() {
-        this.bindEvents();
-        this.loadTodayData();
+    changeEditDate(newDate) {
+        this.currentEditDate = new Date(newDate);
+        this.loadStoredData();
+        this.updateFondoCassaLive();
     }
-
-    bindEvents() {
-        // Bind input events for real-time calculation
+    initializeElements() {
+        this.form = document.getElementById('chiusuraCassaForm');
+        this.scontrinatoTotale = document.getElementById('scontrinatoTotale');
+        this.scontrinatoContanti = document.getElementById('scontrinatoContanti');
+        this.scontrinatoPos = document.getElementById('scontrinatoPos');
+        this.art74 = document.getElementById('art74');
+        this.art22 = document.getElementById('art22');
+        this.dropPos = document.getElementById('dropPos');
+        this.dropCash = document.getElementById('dropCash');
+        this.moneteGiornoPrecedente = document.getElementById('moneteGiornoPrecedente');
+        this.moneteAttuali = document.getElementById('moneteAttuali');
+        this.totaleContantiCassa = document.getElementById('totaleContantiCassa');
+        this.verificationResult = document.getElementById('verificationResult');
+        this.articoliVerification = document.getElementById('articoliVerification');
+        this.differenzaMonete = document.getElementById('differenzaMonete');
+        this.fondoCassaResult = document.getElementById('fondoCassaResult');
+        this.fondoCassaInterpretation = document.getElementById('fondoCassaInterpretation');
+        this.statusIndicator = document.getElementById('statusIndicator');
+        this.plafondFill = document.getElementById('plafondFill');
+        this.countdown = document.getElementById('countdown');
+        this.verificaCompleta = document.getElementById('verificaCompleta');
+        this.salvaBtn = document.getElementById('salvaBtn');
+        this.esportaBtn = document.getElementById('esportaBtn');
+        this.modal = document.getElementById('modal');
+        this.modalBody = document.getElementById('modalBody');
+    }
+    loadStoredData() {
+        const yesterday = new Date(this.currentEditDate);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayKey = this.getDateKey(yesterday);
+        const yesterdayData = localStorage.getItem(`chiusura_${yesterdayKey}`);
+        if (this.moneteGiornoPrecedente) {
+            if (yesterdayData) {
+                const data = JSON.parse(yesterdayData);
+                this.moneteGiornoPrecedente.value = data.moneteAttuali || 70;
+            } else {
+                this.moneteGiornoPrecedente.value = 70;
+            }
+        }
+        const currentKey = this.getDateKey(this.currentEditDate);
+        const currentData = localStorage.getItem(`chiusura_${currentKey}`);
+        if (currentData) {
+            const data = JSON.parse(currentData);
+            if (this.scontrinatoTotale) this.scontrinatoTotale.value = data.scontrinatoTotale || '';
+            if (this.scontrinatoContanti) this.scontrinatoContanti.value = data.scontrinatoContanti || '';
+            if (this.scontrinatoPos) this.scontrinatoPos.value = data.scontrinatoPos || '';
+            if (this.art74) this.art74.value = data.art74 || '';
+            if (this.art22) this.art22.value = data.art22 || '';
+            if (this.dropPos) this.dropPos.value = data.dropPos || '';
+            if (this.dropCash) this.dropCash.value = data.dropCash || '';
+            if (this.moneteAttuali) this.moneteAttuali.value = data.moneteAttuali || '';
+            if (this.totaleContantiCassa) this.totaleContantiCassa.value = data.totaleContantiCassa || '';
+        } else {
+            if (this.scontrinatoTotale) this.scontrinatoTotale.value = '';
+            if (this.scontrinatoContanti) this.scontrinatoContanti.value = '';
+            if (this.scontrinatoPos) this.scontrinatoPos.value = '';
+            if (this.art74) this.art74.value = '';
+            if (this.art22) this.art22.value = '';
+            if (this.dropPos) this.dropPos.value = '';
+            if (this.dropCash) this.dropCash.value = '';
+            if (this.moneteAttuali) this.moneteAttuali.value = '';
+            if (this.totaleContantiCassa) this.totaleContantiCassa.value = '';
+        }
+        this.updateFondoCassaLive();
+    }
+    setupEventListeners() {
         const inputs = [
-            'scontrinatoTotale', 'scontrinatoContanti', 'scontrinatoPos',
-            'art74', 'art22', 'dropPos', 'dropCash',
-            'moneteGiornoPrecedente', 'moneteAttuali'
-        ];
-
-        inputs.forEach(id => {
-            const input = document.getElementById(id);
-            if (input) {
-                input.addEventListener('input', () => this.calcolaAutomatico());
-            }
+            this.scontrinatoTotale, this.scontrinatoContanti, this.scontrinatoPos,
+            this.art74, this.art22, this.dropPos, this.dropCash,
+            this.moneteGiornoPrecedente, this.moneteAttuali, this.totaleContantiCassa
+        ].filter(Boolean);
+        inputs.forEach(input => {
+            input.addEventListener('input', () => this.updateFondoCassaLive());
+        });
+        if (this.verificaCompleta) this.verificaCompleta.addEventListener('click', () => this.verificaCompleta_Click());
+        if (this.form) this.form.addEventListener('submit', (e) => this.salvaChiusura(e));
+        if (this.esportaBtn) this.esportaBtn.addEventListener('click', () => this.esportaReport());
+        const closeBtn = document.querySelector('.close');
+        if (closeBtn) closeBtn.addEventListener('click', () => this.closeModal());
+        window.addEventListener('click', (e) => {
+            if (e.target === this.modal) this.closeModal();
         });
     }
-
-    async loadTodayData() {
-        const today = new Date().toISOString().split('T')[0];
-        const chiusure = await dbManager.loadData('chiusure_cassa');
-        const todayData = chiusure.find(c => c.data === today);
-        
-        if (todayData) {
-            this.loadDataIntoForm(todayData);
+    updateFondoCassaLive() {
+        const scontrinatoCash = parseFloat(this.scontrinatoContanti?.value) || 0;
+        const dropCash = parseFloat(this.dropCash?.value) || 0;
+        const totaleContanti = parseFloat(this.totaleContantiCassa?.value) || 0;
+        const moneteAttuali = parseFloat(this.moneteAttuali?.value) || 0;
+        const moneteGiornoPrecedente = parseFloat(this.moneteGiornoPrecedente?.value) || 0;
+        const differenzaMonete = moneteAttuali - moneteGiornoPrecedente;
+        if (this.differenzaMonete) {
+            this.differenzaMonete.textContent = (differenzaMonete >= 0 ? "+" : "") + "€" + differenzaMonete.toFixed(2) + (differenzaMonete > 0 ? " (Esubero)" : (differenzaMonete < 0 ? " (Ammanco)" : ""));
         }
-    }
-
-    loadDataIntoForm(data) {
-        const fields = [
-            'scontrinatoTotale', 'scontrinatoContanti', 'scontrinatoPos',
-            'art74', 'art22', 'dropPos', 'dropCash',
-            'moneteGiornoPrecedente', 'moneteAttuali'
-        ];
-
-        fields.forEach(field => {
-            const input = document.getElementById(field);
-            if (input && data[field] !== undefined) {
-                input.value = data[field];
-            }
-        });
-
-        this.calcolaAutomatico();
-    }
-
-    calcolaAutomatico() {
-        const values = this.getFormValues();
-        
-        // Calcola totale contanti in cassa
-        const totaleContanti = values.scontrinatoContanti + values.art74 + values.art22;
-        const totaleContantiEl = document.getElementById('totaleContantiCassa');
-        if (totaleContantiEl) {
-            totaleContantiEl.textContent = `€${totaleContanti.toFixed(2)}`;
+        const fondoCassa = totaleContanti - scontrinatoCash - dropCash + differenzaMonete - 100;
+        if (this.fondoCassaResult) {
+            this.fondoCassaResult.textContent = `€${fondoCassa.toFixed(2)}`;
         }
-
-        // Calcola fondo cassa
-        const differenzaMonete = values.moneteAttuali - values.moneteGiornoPrecedente;
-        const fondoCassa = totaleContanti - values.scontrinatoContanti - values.dropCash + differenzaMonete - 100;
-        
-        const fondoCassaEl = document.getElementById('fondoCassaResult');
-        const interpretationEl = document.getElementById('fondoCassaInterpretation');
-        
-        if (fondoCassaEl) {
-            fondoCassaEl.textContent = `€${fondoCassa.toFixed(2)}`;
-        }
-
-        if (interpretationEl) {
-            if (Math.abs(fondoCassa) <= 5) {
-                interpretationEl.textContent = '✅ Perfetto! Quadratura esatta.';
-                interpretationEl.className = 'result-interpretation perfect';
-            } else if (Math.abs(fondoCassa) <= 20) {
-                interpretationEl.textContent = '⚠️ Differenza accettabile.';
-                interpretationEl.className = 'result-interpretation warning';
+        let statusText = '';
+        let statusClass = '';
+        if (Math.abs(fondoCassa) < 0.01) {
+            statusText = '✅ Perfetto equilibrio';
+            statusClass = 'perfect';
+        } else if (fondoCassa > 0) {
+            if (fondoCassa <= 10) {
+                statusText = '⚠️ Leggero esubero';
+                statusClass = 'warning';
             } else {
-                interpretationEl.textContent = '❌ Differenza significativa da verificare.';
-                interpretationEl.className = 'result-interpretation danger';
+                statusText = '🚨 Esubero significativo';
+                statusClass = 'danger';
+            }
+        } else {
+            if (fondoCassa >= -10) {
+                statusText = '⚠️ Leggero ammanco';
+                statusClass = 'warning';
+            } else {
+                statusText = '🚨 Ammanco significativo';
+                statusClass = 'danger';
             }
         }
+        if (this.fondoCassaInterpretation) {
+            this.fondoCassaInterpretation.textContent = statusText;
+            this.fondoCassaInterpretation.className = `result-interpretation ${statusClass}`;
+        }
     }
-
-    getFormValues() {
-        return {
-            scontrinatoTotale: parseFloat(document.getElementById('scontrinatoTotale')?.value) || 0,
-            scontrinatoContanti: parseFloat(document.getElementById('scontrinatoContanti')?.value) || 0,
-            scontrinatoPos: parseFloat(document.getElementById('scontrinatoPos')?.value) || 0,
-            art74: parseFloat(document.getElementById('art74')?.value) || 0,
-            art22: parseFloat(document.getElementById('art22')?.value) || 0,
-            dropPos: parseFloat(document.getElementById('dropPos')?.value) || 0,
-            dropCash: parseFloat(document.getElementById('dropCash')?.value) || 0,
-            moneteGiornoPrecedente: parseFloat(document.getElementById('moneteGiornoPrecedente')?.value) || 0,
-            moneteAttuali: parseFloat(document.getElementById('moneteAttuali')?.value) || 0
+    verificaCompleta_Click() {
+        this.verificaScontrinato();
+        this.verificaArticoli();
+        this.updateFondoCassaLive();
+        this.updateDropPosStatus();
+        const hasCalculationErrors = (this.verificationResult?.classList.contains('error') || false) ||
+                                   (this.articoliVerification?.classList.contains('error') || false);
+        if (hasCalculationErrors) {
+            this.showModal('warning', 'Avvisi Rilevati', 
+                'Ci sono alcuni avvisi nei calcoli, ma puoi comunque salvare la chiusura.');
+        } else {
+            this.showModal('success', 'Verifica Completata', 
+                'Tutti i controlli sono stati superati! Puoi salvare la chiusura.');
+        }
+    }
+    verificaScontrinato() {
+        const totale = parseFloat(this.scontrinatoTotale?.value) || 0;
+        const contanti = parseFloat(this.scontrinatoContanti?.value) || 0;
+        const pos = parseFloat(this.scontrinatoPos?.value) || 0;
+        if (!this.verificationResult) return;
+        if (totale === 0 && contanti === 0 && pos === 0) {
+            this.verificationResult.style.display = 'none';
+            return;
+        }
+        const somma = contanti + pos;
+        const differenza = Math.abs(totale - somma);
+        this.verificationResult.style.display = 'block';
+        if (differenza < 0.01) {
+            this.verificationResult.className = 'verification-result success';
+            this.verificationResult.innerHTML = '✅ Scontrinato verificato correttamente';
+        } else {
+            this.verificationResult.className = 'verification-result error';
+            this.verificationResult.innerHTML = 
+                `❌ AVVISO: Discrepanza scontrinato! Differenza: €${differenza.toFixed(2)}`;
+        }
+    }
+    verificaArticoli() {
+        const scontrinatoTotale = parseFloat(this.scontrinatoTotale?.value) || 0;
+        const art74 = parseFloat(this.art74?.value) || 0;
+        const art22 = parseFloat(this.art22?.value) || 0;
+        if (!this.articoliVerification) return;
+        if (scontrinatoTotale === 0 && art74 === 0 && art22 === 0) {
+            this.articoliVerification.style.display = 'none';
+            return;
+        }
+        const sommaArticoli = art74 + art22;
+        const differenza = Math.abs(scontrinatoTotale - sommaArticoli);
+        this.articoliVerification.style.display = 'block';
+        if (differenza < 0.01) {
+            this.articoliVerification.className = 'articoli-verification success';
+            this.articoliVerification.innerHTML = '✅ Art. 74 + Art. 22 = Scontrinato Totale ✓';
+        } else {
+            this.articoliVerification.className = 'articoli-verification error';
+            this.articoliVerification.innerHTML = 
+                `❌ AVVISO: Art. 74 + Art. 22 ≠ Scontrinato Totale! Differenza: €${differenza.toFixed(2)}`;
+        }
+    }
+    updateDropPosStatus() {
+        if (!this.plafondFill) return;
+        const dropAmount = parseFloat(this.dropPos?.value) || 0;
+        const percentage = (dropAmount / 1500) * 100;
+        this.plafondFill.style.width = `${Math.min(percentage, 100)}%`;
+        if (percentage < 80) {
+            this.plafondFill.style.background = '#28a745';
+        } else if (percentage < 100) {
+            this.plafondFill.style.background = '#ffc107';
+        } else {
+            this.plafondFill.style.background = '#dc3545';
+        }
+    }
+    updateDateTime() {
+        const now = new Date();
+        const options = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
         };
+        const dateEl = document.getElementById('currentDate');
+        const timeEl = document.getElementById('currentTime');
+        if (dateEl) dateEl.textContent = now.toLocaleDateString('it-IT', options);
+        if (timeEl) timeEl.textContent = now.toLocaleTimeString('it-IT');
     }
-
-    verificaCompleta() {
-        const values = this.getFormValues();
-        
-        // Verifica coerenza scontrinato
-        const sommaMetodi = values.scontrinatoContanti + values.scontrinatoPos;
-        const differenzaScontrinato = Math.abs(values.scontrinatoTotale - sommaMetodi);
-        
-        const verificationEl = document.getElementById('verificationResult');
-        if (verificationEl) {
-            if (differenzaScontrinato <= 0.01) {
-                verificationEl.textContent = '✅ Scontrinato verificato: la somma dei metodi di pagamento corrisponde al totale.';
-                verificationEl.className = 'verification-result success';
-            } else {
-                verificationEl.textContent = `❌ Errore scontrinato: differenza di €${differenzaScontrinato.toFixed(2)} tra totale e somma metodi.`;
-                verificationEl.className = 'verification-result error';
-            }
+    updateCountdown() {
+        if (!this.countdown) return;
+        const now = new Date();
+        const deadline = new Date();
+        deadline.setHours(20, 0, 0, 0);
+        if (now > deadline) {
+            deadline.setDate(deadline.getDate() + 1);
         }
-
-        // Verifica articoli
-        const articoliEl = document.getElementById('articoliVerification');
-        if (articoliEl) {
-            if (values.art74 > 0 || values.art22 > 0) {
-                articoliEl.textContent = `ℹ️ Articoli registrati: Art.74 €${values.art74.toFixed(2)}, Art.22 €${values.art22.toFixed(2)}`;
-                articoliEl.className = 'articoli-verification success';
-            } else {
-                articoliEl.textContent = '⚠️ Nessun articolo 74 o 22 registrato.';
-                articoliEl.className = 'articoli-verification error';
-            }
+        const diff = deadline - now;
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        this.countdown.textContent = `${hours}h ${minutes}m alle 20:00`;
+        if (hours < 2) {
+            this.countdown.style.color = '#dc3545';
+            this.countdown.style.fontWeight = 'bold';
         }
-
-        this.calcolaAutomatico();
     }
-
-    async salvaChiusura() {
-        const values = this.getFormValues();
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Calcola fondo cassa
-        const totaleContanti = values.scontrinatoContanti + values.art74 + values.art22;
-        const differenzaMonete = values.moneteAttuali - values.moneteGiornoPrecedente;
-        const fondoCassa = totaleContanti - values.scontrinatoContanti - values.dropCash + differenzaMonete - 100;
-
-        const chiusuraData = {
-            ...values,
-            data: today,
-            fondoCassa: fondoCassa,
-            timestamp: new Date().toISOString()
+    salvaChiusura(e) {
+        e.preventDefault();
+        const moneteAttuali = parseFloat(this.moneteAttuali?.value) || 0;
+        const moneteGiornoPrecedente = parseFloat(this.moneteGiornoPrecedente?.value) || 0;
+        const differenzaMonete = moneteAttuali - moneteGiornoPrecedente;
+        const data = {
+            data: this.currentEditDate.toISOString(),
+            scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
+            scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
+            scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
+            art74: parseFloat(this.art74?.value) || 0,
+            art22: parseFloat(this.art22?.value) || 0,
+            dropPos: parseFloat(this.dropPos?.value) || 0,
+            dropCash: parseFloat(this.dropCash?.value) || 0,
+            moneteGiornoPrecedente: moneteGiornoPrecedente,
+            moneteAttuali: moneteAttuali,
+            totaleContantiCassa: parseFloat(this.totaleContantiCassa?.value) || 0,
+            fondoCassa: parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0,
+            differenzaMonete: differenzaMonete,
+            status: this.getOverallStatus()
         };
-
-        try {
-            // Verifica se esiste già una chiusura per oggi
-            const chiusure = await dbManager.loadData('chiusure_cassa');
-            const existingChiusura = chiusure.find(c => c.data === today);
-            
-            if (existingChiusura) {
-                // Aggiorna chiusura esistente
-                await dbManager.saveData('chiusure_cassa', chiusuraData, existingChiusura.id);
-                showNotification('success', 'Chiusura aggiornata con successo!');
-            } else {
-                // Crea nuova chiusura
-                await dbManager.saveData('chiusure_cassa', chiusuraData);
-                showNotification('success', 'Chiusura salvata con successo!');
-            }
-
-            // Aggiorna il calendario
-            if (window.cassaCalendar) {
-                window.cassaCalendar.render();
-            }
-        } catch (error) {
-            console.error('Errore salvataggio chiusura:', error);
-            showNotification('error', 'Errore nel salvataggio della chiusura');
+        const dateKey = this.getDateKey(this.currentEditDate);
+        localStorage.setItem(`chiusura_${dateKey}`, JSON.stringify(data));
+        this.showModal('success', 'Chiusura Salvata', 
+            `La chiusura cassa per il ${this.currentEditDate.toLocaleDateString('it-IT')} è stata salvata correttamente!`);
+        if (window.calendarChiusure) window.calendarChiusure.render();
+        if (window.cassaCalendar) window.cassaCalendar.render();
+        const isToday = this.getDateKey(this.currentEditDate) === this.getDateKey(new Date());
+        if (isToday) {
+            if (this.scontrinatoTotale) this.scontrinatoTotale.value = '';
+            if (this.scontrinatoContanti) this.scontrinatoContanti.value = '';
+            if (this.scontrinatoPos) this.scontrinatoPos.value = '';
+            if (this.art74) this.art74.value = '';
+            if (this.art22) this.art22.value = '';
+            if (this.dropPos) this.dropPos.value = '';
+            if (this.dropCash) this.dropCash.value = '';
+            if (this.totaleContantiCassa) this.totaleContantiCassa.value = '';
+            if (this.moneteAttuali) this.moneteAttuali.value = '';
         }
     }
-
     esportaReport() {
-        const values = this.getFormValues();
-        const today = new Date().toISOString().split('T')[0];
-        
-        const report = `
-REPORT CHIUSURA CASSA - ${new Date().toLocaleDateString('it-IT')}
-================================================================
-
-SCONTRINATO:
-- Totale: €${values.scontrinatoTotale.toFixed(2)}
-- Contanti: €${values.scontrinatoContanti.toFixed(2)}
-- POS: €${values.scontrinatoPos.toFixed(2)}
-
-ARTICOLI:
-- Art. 74: €${values.art74.toFixed(2)}
-- Art. 22: €${values.art22.toFixed(2)}
-
-DROP:
-- POS: €${values.dropPos.toFixed(2)}
-- Cash: €${values.dropCash.toFixed(2)}
-
-MONETE:
-- Giorno precedente: €${values.moneteGiornoPrecedente.toFixed(2)}
-- Attuali: €${values.moneteAttuali.toFixed(2)}
-- Differenza: €${(values.moneteAttuali - values.moneteGiornoPrecedente).toFixed(2)}
-
-RISULTATI:
-- Totale contanti in cassa: €${(values.scontrinatoContanti + values.art74 + values.art22).toFixed(2)}
-- Fondo cassa: €${(values.scontrinatoContanti + values.art74 + values.art22 - values.scontrinatoContanti - values.dropCash + (values.moneteAttuali - values.moneteGiornoPrecedente) - 100).toFixed(2)}
-
-Generato il: ${new Date().toLocaleString('it-IT')}
-        `;
-
+        const dateKey = this.getDateKey(this.currentEditDate);
+        const data = localStorage.getItem(`chiusura_${dateKey}`);
+        if (!data) {
+            this.showModal('warning', 'Nessun Dato', 
+                `Non ci sono dati da esportare per il ${this.currentEditDate.toLocaleDateString('it-IT')}.`);
+            return;
+        }
+        const chiusura = JSON.parse(data);
+        const report = this.generateReport(chiusura);
         const blob = new Blob([report], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `chiusura_cassa_${today}.txt`;
+        a.download = `chiusura_cassa_${dateKey}.txt`;
         a.click();
         URL.revokeObjectURL(url);
-        
-        showNotification('success', 'Report esportato con successo!');
+    }
+    generateReport(data) {
+        const date = new Date(data.data).toLocaleDateString('it-IT');
+        return `
+REPORT CHIUSURA CASSA
+=====================
+Data: ${date}
+Ora: ${new Date(data.data).toLocaleTimeString('it-IT')}
+
+SCONTRINATO GIORNALIERO
+-----------------------
+Totale: €${data.scontrinatoTotale.toFixed(2)}
+Contanti: €${data.scontrinatoContanti.toFixed(2)}
+POS: €${data.scontrinatoPos.toFixed(2)}
+
+ARTICOLI FISCALI
+----------------
+Art. 74: €${(data.art74 || 0).toFixed(2)}
+Art. 22: €${(data.art22 || 0).toFixed(2)}
+Totale Articoli: €${((data.art74 || 0) + (data.art22 || 0)).toFixed(2)}
+
+DROP
+----
+Drop POS: €${data.dropPos.toFixed(2)}
+Drop Cash: €${data.dropCash.toFixed(2)}
+
+MONETE (Base: €70.00)
+---------------------
+Giorno Precedente: €${data.moneteGiornoPrecedente.toFixed(2)}
+Attuali: €${data.moneteAttuali.toFixed(2)}
+Differenza: €${(data.differenzaMonete || 0).toFixed(2)}
+
+FONDO CASSA
+-----------
+Totale Contanti in Cassa: €${data.totaleContantiCassa.toFixed(2)}
+Risultato Fondo Cassa: €${data.fondoCassa.toFixed(2)}
+(Fondo cassa iniziale di €100.00 già sottratto)
+
+STATUS: ${(data.status || 'N/A').toUpperCase()}
+
+Generato il: ${new Date().toLocaleString('it-IT')}
+        `.trim();
+    }
+    showModal(type, title, message) {
+        if (!this.modal || !this.modalBody) return;
+        const icon = type === 'success' ? '✅' : 
+                    type === 'warning' ? '⚠️' : 
+                    type === 'info' ? 'ℹ️' : '❌';
+        this.modalBody.innerHTML = `
+            <h2>${icon} ${title}</h2>
+            <p>${message}</p>
+        `;
+        this.modal.style.display = 'block';
+    }
+    closeModal() {
+        if (this.modal) this.modal.style.display = 'none';
+    }
+    updateStatus(type, message) {
+        const dot = this.statusIndicator?.querySelector('.status-dot');
+        const text = this.statusIndicator?.querySelector('.status-text');
+        if (dot && text) {
+            dot.className = `status-dot ${type}`;
+            text.textContent = message;
+        }
+    }
+    getOverallStatus() {
+        const hasCalculationErrors = (this.verificationResult?.classList.contains('error') || false) ||
+                                   (this.articoliVerification?.classList.contains('error') || false);
+        const fondoCassa = parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0;
+        if (hasCalculationErrors) return 'warning';
+        if (Math.abs(fondoCassa) > 50) return 'warning';
+        return 'ok';
+    }
+    getDateKey(date) {
+        return date.toISOString().split('T')[0];
     }
 }
 
-// Inizializzazione quando il DOM è pronto
 document.addEventListener('DOMContentLoaded', () => {
-    // Avvia aggiornamento orario
     setInterval(updateModernDateTime, 1000);
     updateModernDateTime();
-// Inizializza dashboard se presente
-if (document.getElementById('dashboardPeriod')) {
-    document.getElementById('dashboardPeriod').onchange = aggiornaDashboardAvanzata;
-    aggiornaDashboardAvanzata();
-}
-
-if (document.getElementById('dashboardYear')) {
-    document.getElementById('dashboardYear').onchange = aggiornaDashboardAvanzata;
-}
-
-if (document.getElementById('refreshDashboard')) {
-    document.getElementById('refreshDashboard').onclick = aggiornaDashboardAvanzata;
-}
-
-// Carica dati iniziali
-caricaFornitori();
-mostraFatture();
-mostraRicorrenze();
-
-// Setup event listeners per gestione fornitori
-const aggiungiFornitoreBtn = document.getElementById('aggiungiFornitore');
-const nuovoFornitoreInput = document.getElementById('nuovoFornitore');
-if (aggiungiFornitoreBtn) aggiungiFornitoreBtn.onclick = aggiungiFornitore;
-if (nuovoFornitoreInput) {
-    nuovoFornitoreInput.onkeypress = (e) => {
-        if (e.key === 'Enter') aggiungiFornitore();
-    };
-}
-
-// Setup event listeners per form fatture
-const fatturaForm = document.getElementById('fatturaForm');
-const resetFatturaBtn = document.getElementById('resetFatturaForm');
-if (fatturaForm) fatturaForm.onsubmit = salvaFattura;
-if (resetFatturaBtn) resetFatturaBtn.onclick = resetFatturaForm;
-
-// Setup filtri per fatture
-const filtroStato = document.getElementById('filtroStato');
-const filtroFornitore = document.getElementById('filtroFornitore');
-const filtroRicerca = document.getElementById('filtroRicerca');
-if (filtroStato) filtroStato.onchange = mostraFatture;
-if (filtroFornitore) filtroFornitore.onchange = mostraFatture;
-if (filtroRicerca) filtroRicerca.oninput = mostraFatture;
-
-// Setup event listeners per form ricorrenze
-const ricorrenzaForm = document.getElementById('ricorrenzaForm');
-const resetRicorrenzaBtn = document.getElementById('resetRicorrenzaForm');
-if (ricorrenzaForm) ricorrenzaForm.onsubmit = salvaRicorrenza;
-if (resetRicorrenzaBtn) resetRicorrenzaBtn.onclick = () => ricorrenzaForm.reset();
-
-// Inizializza calendari e sistemi
-window.calendarChiusure = new CalendarChiusure();
-window.cassaCalendar = new CassaCalendar();
-window.chiusuraCassaSystem = new ChiusuraCassaSystem();
-
-console.log('🎉 Sistema aziendale con Supabase inizializzato con successo!');
+    aggiornaDataOra();
+    setInterval(aggiornaDataOra, 1000);
+    if (document.getElementById('dashboardPeriod')) {
+        document.getElementById('dashboardPeriod').onchange = aggiornaDashboardAvanzata;
+        aggiornaDashboardAvanzata();
+    }
+    if (document.getElementById('dashboardYear')) {
+        document.getElementById('dashboardYear').onchange = aggiornaDashboardAvanzata;
+    }
+    if (document.getElementById('refreshDashboard')) {
+        document.getElementById('refreshDashboard').onclick = aggiornaDashboardAvanzata;
+    }
+    caricaFornitori();
+    mostraFatture();
+    mostraRicorrenze();
+    const aggiungiFornitoreBtn = document.getElementById('aggiungiFornitore');
+    const nuovoFornitoreInput = document.getElementById('nuovoFornitore');
+    if (aggiungiFornitoreBtn) aggiungiFornitoreBtn.onclick = aggiungiFornitore;
+    if (nuovoFornitoreInput) {
+        nuovoFornitoreInput.onkeypress = (e) => {
+            if (e.key === 'Enter') aggiungiFornitore();
+        };
+    }
+    const fatturaForm = document.getElementById('fatturaForm');
+    const resetFatturaBtn = document.getElementById('resetFatturaForm');
+    if (fatturaForm) fatturaForm.onsubmit = salvaFattura;
+    if (resetFatturaBtn) resetFatturaBtn.onclick = resetFatturaForm;
+    const filtroStato = document.getElementById('filtroStato');
+    const filtroFornitore = document.getElementById('filtroFornitore');
+    const filtroRicerca = document.getElementById('filtroRicerca');
+    if (filtroStato) filtroStato.onchange = mostraFatture;
+    if (filtroFornitore) filtroFornitore.onchange = mostraFatture;
+    if (filtroRicerca) filtroRicerca.oninput = mostraFatture;
+    const ricorrenzaForm = document.getElementById('ricorrenzaForm');
+    const resetRicorrenzaBtn = document.getElementById('resetRicorrenzaForm');
+    if (ricorrenzaForm) ricorrenzaForm.onsubmit = salvaRicorrenza;
+    if (resetRicorrenzaBtn) resetRicorrenzaBtn.onclick = () => ricorrenzaForm.reset();
+    new CalendarChiusure();
+    window.cassaCalendar = new CassaCalendar();
+    window.chiusuraCassaSystem = new ChiusuraCassaSystem();
+    console.log('🎉 Sistema aziendale con header moderno inizializzato con successo!');
 });
