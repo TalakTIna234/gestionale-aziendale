@@ -36,7 +36,10 @@ class DatabaseManager {
                     result = await supabaseClient.from(table).insert([data]).select();
                 }
                 
-                if (result.error) throw result.error;
+                if (result.error) {
+                    console.error('Errore Supabase:', result.error);
+                    throw result.error;
+                }
                 return result.data[0];
             } catch (error) {
                 console.error('Errore Supabase:', error);
@@ -57,7 +60,10 @@ class DatabaseManager {
                     });
                 }
                 const result = await query;
-                if (result.error) throw result.error;
+                if (result.error) {
+                    console.error('Errore caricamento Supabase:', result.error);
+                    throw result.error;
+                }
                 return result.data || [];
             } catch (error) {
                 console.error('Errore caricamento Supabase:', error);
@@ -72,7 +78,10 @@ class DatabaseManager {
         if (USE_SUPABASE && this.isOnline) {
             try {
                 const result = await supabaseClient.from(table).delete().eq('id', id);
-                if (result.error) throw result.error;
+                if (result.error) {
+                    console.error('Errore eliminazione Supabase:', result.error);
+                    throw result.error;
+                }
                 return true;
             } catch (error) {
                 console.error('Errore eliminazione Supabase:', error);
@@ -120,6 +129,7 @@ class DatabaseManager {
         this.syncQueue = [];
     }
 }
+
 
 // Inizializza il database manager
 const dbManager = new DatabaseManager();
