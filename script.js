@@ -1,8 +1,9 @@
 // Database functions per Supabase - AGGIUNTA SENZA MODIFICARE IL RESTO
 // Configurazione Supabase
 const USE_SUPABASE = true;
-// ATTENZIONE: se usi la CDN, la funzione è supabase.createClient
-const supabase = supabase.createClient(
+// Usa la libreria globale per creare il client
+const { createClient } = supabase;
+const supabaseClient = createClient(
   'https://fodowfardgribthpgxxs.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk'
 );
@@ -30,9 +31,9 @@ class DatabaseManager {
             try {
                 let result;
                 if (key) {
-                    result = await supabase.from(table).update(data).eq('id', key).select();
+                    result = await supabaseClient.from(table).update(data).eq('id', key).select();
                 } else {
-                    result = await supabase.from(table).insert([data]).select();
+                    result = await supabaseClient.from(table).insert([data]).select();
                 }
                 
                 if (result.error) throw result.error;
@@ -49,7 +50,7 @@ class DatabaseManager {
     async loadData(table, filters = null) {
         if (USE_SUPABASE && this.isOnline) {
             try {
-                let query = supabase.from(table).select('*');
+                let query = supabaseClient.from(table).select('*');
                 if (filters) {
                     Object.entries(filters).forEach(([key, value]) => {
                         query = query.eq(key, value);
@@ -70,7 +71,7 @@ class DatabaseManager {
     async deleteData(table, id) {
         if (USE_SUPABASE && this.isOnline) {
             try {
-                const result = await supabase.from(table).delete().eq('id', id);
+                const result = await supabaseClient.from(table).delete().eq('id', id);
                 if (result.error) throw result.error;
                 return true;
             } catch (error) {
@@ -205,8 +206,10 @@ function getPeriodoDateRange(period, year = new Date().getFullYear()) {
     let start, end;
     if (period === 'week') {
         const day = now.getDay() || 7;
-        start = new Date(now); start.setDate(now.getDate() - day + 1);
-        end = new Date(now); end.setDate(start.getDate() + 6);
+        start = new Date(now);
+        start.setDate(now.getDate() - day + 1);
+        end = new Date(now);
+        end.setDate(start.getDate() + 6);
     } else if (period === 'month') {
         start = new Date(year, now.getMonth(), 1);
         end = new Date(year, now.getMonth() + 1, 0);
@@ -262,12 +265,14 @@ async function raccogliDatiFinanziari(start, end) {
             const scadenza = new Date(f.scadenza);
             return f.stato === 'da pagare' && scadenza < new Date();
         }).reduce((sum, f) => sum + f.importo, 0);
+        
         const totaleEntrate = ricaviCassa + entrateRicorrenti;
         const totaleUscite = fatturepagate + usciteRicorrenti;
         const utileNetto = totaleEntrate - totaleUscite;
         const ivaVendite = ricaviCassa * 0.22;
         const ivaAcquisti = fatturepagate * 0.22;
         const ivaNettaDaVersare = Math.max(0, ivaVendite - ivaAcquisti);
+        
         return {
             chiusure: chiusureFiltrate, fatture: fattureFiltrate, ricorrenze, ricaviCassa, entrateRicorrenti, usciteRicorrenti,
             fatturepagate, fatturePendenti, fattureScadute, totaleEntrate, totaleUscite,
@@ -1246,7 +1251,7 @@ class ChiusuraCassaSystem {
                 statusText = '🚨 Esubero significativo';
                 statusClass = 'danger';
             }
-        } else {
+                } else {
             if (fondoCassa >= -10) {
                 statusText = '⚠️ Leggero ammanco';
                 statusClass = 'warning';
@@ -1260,6 +1265,7 @@ class ChiusuraCassaSystem {
             this.fondoCassaInterpretation.className = `result-interpretation ${statusClass}`;
         }
     }
+
     verificaCompleta_Click() {
         this.verificaScontrinato();
         this.verificaArticoli();
@@ -1275,160 +1281,161 @@ class ChiusuraCassaSystem {
                 'Tutti i controlli sono stati superati! Puoi salvare la chiusura.');
         }
     }
-   verificaScontrinato() {
-    const totale = parseFloat(this.scontrinatoTotale?.value) || 0;
-    const contanti = parseFloat(this.scontrinatoContanti?.value) || 0;
-    const pos = parseFloat(this.scontrinatoPos?.value) || 0;
-    
-    if (!this.verificationResult) return;
-    
-    if (totale === 0 && contanti === 0 && pos === 0) {
-        this.verificationResult.style.display = 'none';
-        return;
-    }
-    
-    const somma = contanti + pos;
-    const differenza = Math.abs(totale - somma);
-    
-    this.verificationResult.style.display = 'block';
-    
-    if (differenza < 0.01) {
-        this.verificationResult.className = 'verification-result success';
-        this.verificationResult.innerHTML = '✅ Scontrinato verificato correttamente';
-    } else {
-        this.verificationResult.className = 'verification-result error';
-        this.verificationResult.innerHTML = 
-            `❌ AVVISO: Discrepanza scontrinato! Differenza: €${differenza.toFixed(2)}`;
-    }
-}
 
-verificaArticoli() {
-    const scontrinatoTotale = parseFloat(this.scontrinatoTotale?.value) || 0;
-    const art74 = parseFloat(this.art74?.value) || 0;
-    const art22 = parseFloat(this.art22?.value) || 0;
-    
-    if (!this.articoliVerification) return;
-    
-    if (scontrinatoTotale === 0 && art74 === 0 && art22 === 0) {
-        this.articoliVerification.style.display = 'none';
-        return;
-    }
-    
-    const sommaArticoli = art74 + art22;
-    const differenza = Math.abs(scontrinatoTotale - sommaArticoli);
-    
-    this.articoliVerification.style.display = 'block';
-    
-    if (differenza < 0.01) {
-        this.articoliVerification.className = 'articoli-verification success';
-        this.articoliVerification.innerHTML = '✅ Art. 74 + Art. 22 = Scontrinato Totale ✓';
-    } else {
-        this.articoliVerification.className = 'articoli-verification error';
-        this.articoliVerification.innerHTML = 
-            `❌ AVVISO: Art. 74 + Art. 22 ≠ Scontrinato Totale! Differenza: €${differenza.toFixed(2)}`;
-    }
-}
-
-updateDropPosStatus() {
-    if (!this.plafondFill) return;
-    const dropAmount = parseFloat(this.dropPos?.value) || 0;
-    const percentage = (dropAmount / 1500) * 100;
-    this.plafondFill.style.width = `${Math.min(percentage, 100)}%`;
-    
-    if (percentage < 80) {
-        this.plafondFill.style.background = '#28a745';
-    } else if (percentage < 100) {
-        this.plafondFill.style.background = '#ffc107';
-    } else {
-        this.plafondFill.style.background = '#dc3545';
-    }
-}
-
-updateDateTime() {
-    const now = new Date();
-    const options = { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-    };
-    const dateEl = document.getElementById('currentDate');
-    const timeEl = document.getElementById('currentTime');
-    if (dateEl) dateEl.textContent = now.toLocaleDateString('it-IT', options);
-    if (timeEl) timeEl.textContent = now.toLocaleTimeString('it-IT');
-}
-
-updateCountdown() {
-    if (!this.countdown) return;
-    const now = new Date();
-    const deadline = new Date();
-    deadline.setHours(20, 0, 0, 0);
-    if (now > deadline) {
-        deadline.setDate(deadline.getDate() + 1);
-    }
-    const diff = deadline - now;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    this.countdown.textContent = `${hours}h ${minutes}m alle 20:00`;
-    if (hours < 2) {
-        this.countdown.style.color = '#dc3545';
-        this.countdown.style.fontWeight = 'bold';
-    }
-}
-
-async salvaChiusura(e) {
-    if (e) e.preventDefault();
-    
-    const moneteAttuali = parseFloat(this.moneteAttuali?.value) || 0;
-    const moneteGiornoPrecedente = parseFloat(this.moneteGiornoPrecedente?.value) || 0;
-    const differenzaMonete = moneteAttuali - moneteGiornoPrecedente;
-    const totaleContanti = parseFloat(this.totaleContantiCassa?.value) || 0;
-    const scontrinatoCash = parseFloat(this.scontrinatoContanti?.value) || 0;
-    const dropCash = parseFloat(this.dropCash?.value) || 0;
-    const fondoCassa = totaleContanti - scontrinatoCash - dropCash + differenzaMonete - 100;
-    
-    const data = {
-        data: this.currentEditDate.toISOString().split('T')[0],
-        scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
-        scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
-        scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
-        art74: parseFloat(this.art74?.value) || 0,
-        art22: parseFloat(this.art22?.value) || 0,
-        dropPos: parseFloat(this.dropPos?.value) || 0,
-        dropCash: parseFloat(this.dropCash?.value) || 0,
-        moneteGiornoPrecedente: moneteGiornoPrecedente,
-        moneteAttuali: moneteAttuali,
-        totaleContantiCassa: totaleContanti,
-        fondoCassa: fondoCassa,
-        differenzaMonete: differenzaMonete,
-        status: this.getOverallStatus(),
-        timestamp: new Date().toISOString()
-    };
-    
-    try {
-        await dbManager.saveData('chiusure_cassa', data);
-        showNotification('success', `Chiusura cassa salvata per il ${this.currentEditDate.toLocaleDateString('it-IT')}!`);
+    verificaScontrinato() {
+        const totale = parseFloat(this.scontrinatoTotale?.value) || 0;
+        const contanti = parseFloat(this.scontrinatoContanti?.value) || 0;
+        const pos = parseFloat(this.scontrinatoPos?.value) || 0;
         
-        // Aggiorna i calendari
-        if (window.calendarChiusure) window.calendarChiusure.render();
-        if (window.cassaCalendar) window.cassaCalendar.render();
+        if (!this.verificationResult) return;
         
-        // Aggiorna dashboard se attivo
-        if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
-            aggiornaDashboardAvanzata();
+        if (totale === 0 && contanti === 0 && pos === 0) {
+            this.verificationResult.style.display = 'none';
+            return;
         }
         
-    } catch (error) {
-        console.error('Errore salvataggio chiusura:', error);
-        showNotification('error', 'Errore nel salvataggio della chiusura');
+        const somma = contanti + pos;
+        const differenza = Math.abs(totale - somma);
+        
+        this.verificationResult.style.display = 'block';
+        
+        if (differenza < 0.01) {
+            this.verificationResult.className = 'verification-result success';
+            this.verificationResult.innerHTML = '✅ Scontrinato verificato correttamente';
+        } else {
+            this.verificationResult.className = 'verification-result error';
+            this.verificationResult.innerHTML = 
+                `❌ AVVISO: Discrepanza scontrinato! Differenza: €${differenza.toFixed(2)}`;
+        }
     }
-}
 
-esportaReport() {
-    const dateKey = this.getDateKey(this.currentEditDate);
-    const values = this.getFormValues();
-    
-    const report = `
+    verificaArticoli() {
+        const scontrinatoTotale = parseFloat(this.scontrinatoTotale?.value) || 0;
+        const art74 = parseFloat(this.art74?.value) || 0;
+        const art22 = parseFloat(this.art22?.value) || 0;
+        
+        if (!this.articoliVerification) return;
+        
+        if (scontrinatoTotale === 0 && art74 === 0 && art22 === 0) {
+            this.articoliVerification.style.display = 'none';
+            return;
+        }
+        
+        const sommaArticoli = art74 + art22;
+        const differenza = Math.abs(scontrinatoTotale - sommaArticoli);
+        
+        this.articoliVerification.style.display = 'block';
+        
+        if (differenza < 0.01) {
+            this.articoliVerification.className = 'articoli-verification success';
+            this.articoliVerification.innerHTML = '✅ Art. 74 + Art. 22 = Scontrinato Totale ✓';
+        } else {
+            this.articoliVerification.className = 'articoli-verification error';
+            this.articoliVerification.innerHTML = 
+                `❌ AVVISO: Art. 74 + Art. 22 ≠ Scontrinato Totale! Differenza: €${differenza.toFixed(2)}`;
+        }
+    }
+
+    updateDropPosStatus() {
+        if (!this.plafondFill) return;
+        const dropAmount = parseFloat(this.dropPos?.value) || 0;
+        const percentage = (dropAmount / 1500) * 100;
+        this.plafondFill.style.width = `${Math.min(percentage, 100)}%`;
+        
+        if (percentage < 80) {
+            this.plafondFill.style.background = '#28a745';
+        } else if (percentage < 100) {
+            this.plafondFill.style.background = '#ffc107';
+        } else {
+            this.plafondFill.style.background = '#dc3545';
+        }
+    }
+
+    updateDateTime() {
+        const now = new Date();
+        const options = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        };
+        const dateEl = document.getElementById('currentDate');
+        const timeEl = document.getElementById('currentTime');
+        if (dateEl) dateEl.textContent = now.toLocaleDateString('it-IT', options);
+        if (timeEl) timeEl.textContent = now.toLocaleTimeString('it-IT');
+    }
+
+    updateCountdown() {
+        if (!this.countdown) return;
+        const now = new Date();
+        const deadline = new Date();
+        deadline.setHours(20, 0, 0, 0);
+        if (now > deadline) {
+            deadline.setDate(deadline.getDate() + 1);
+        }
+        const diff = deadline - now;
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        this.countdown.textContent = `${hours}h ${minutes}m alle 20:00`;
+        if (hours < 2) {
+            this.countdown.style.color = '#dc3545';
+            this.countdown.style.fontWeight = 'bold';
+        }
+    }
+
+    async salvaChiusura(e) {
+        if (e) e.preventDefault();
+        
+        const moneteAttuali = parseFloat(this.moneteAttuali?.value) || 0;
+        const moneteGiornoPrecedente = parseFloat(this.moneteGiornoPrecedente?.value) || 0;
+        const differenzaMonete = moneteAttuali - moneteGiornoPrecedente;
+        const totaleContanti = parseFloat(this.totaleContantiCassa?.value) || 0;
+        const scontrinatoCash = parseFloat(this.scontrinatoContanti?.value) || 0;
+        const dropCash = parseFloat(this.dropCash?.value) || 0;
+        const fondoCassa = totaleContanti - scontrinatoCash - dropCash + differenzaMonete - 100;
+        
+        const data = {
+            data: this.currentEditDate.toISOString().split('T')[0],
+            scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
+            scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
+            scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
+            art74: parseFloat(this.art74?.value) || 0,
+            art22: parseFloat(this.art22?.value) || 0,
+            dropPos: parseFloat(this.dropPos?.value) || 0,
+            dropCash: parseFloat(this.dropCash?.value) || 0,
+            moneteGiornoPrecedente: moneteGiornoPrecedente,
+            moneteAttuali: moneteAttuali,
+            totaleContantiCassa: totaleContanti,
+            fondoCassa: fondoCassa,
+            differenzaMonete: differenzaMonete,
+            status: this.getOverallStatus(),
+            timestamp: new Date().toISOString()
+        };
+        
+        try {
+            await dbManager.saveData('chiusure_cassa', data);
+            showNotification('success', `Chiusura cassa salvata per il ${this.currentEditDate.toLocaleDateString('it-IT')}!`);
+            
+            // Aggiorna i calendari
+            if (window.calendarChiusure) window.calendarChiusure.render();
+            if (window.cassaCalendar) window.cassaCalendar.render();
+            
+            // Aggiorna dashboard se attivo
+            if (document.querySelector('.nav-btn.active')?.dataset.section === 'dashboard') {
+                aggiornaDashboardAvanzata();
+            }
+            
+        } catch (error) {
+            console.error('Errore salvataggio chiusura:', error);
+            showNotification('error', 'Errore nel salvataggio della chiusura');
+        }
+    }
+
+    esportaReport() {
+        const dateKey = this.getDateKey(this.currentEditDate);
+        const values = this.getFormValues();
+        
+        const report = `
 REPORT CHIUSURA CASSA
 =====================
 Data: ${this.currentEditDate.toLocaleDateString('it-IT')}
@@ -1459,80 +1466,81 @@ Differenza: €${(values.moneteAttuali - values.moneteGiornoPrecedente).toFixed(
 
 FONDO CASSA
 -----------
-Totale Contanti in Cassa: €${(values.scontrinatoContanti + values.art74 + values.art22).toFixed(2)}
-Risultato Fondo Cassa: €${(values.scontrinatoContanti + values.art74 + values.art22 - values.scontrinatoContanti - values.dropCash + (values.moneteAttuali - values.moneteGiornoPrecedente) - 100).toFixed(2)}
+Totale Contanti in Cassa: €${values.totaleContantiCassa.toFixed(2)}
+Risultato Fondo Cassa: €${(values.totaleContantiCassa - values.scontrinatoContanti - values.dropCash + (values.moneteAttuali - values.moneteGiornoPrecedente) - 100).toFixed(2)}
 
 Generato il: ${new Date().toLocaleString('it-IT')}
-    `.trim();
-    
-    const blob = new Blob([report], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chiusura_cassa_${dateKey}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    showNotification('success', 'Report esportato con successo!');
-}
-
-getFormValues() {
-    return {
-        scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
-        scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
-        scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
-        art74: parseFloat(this.art74?.value) || 0,
-        art22: parseFloat(this.art22?.value) || 0,
-        dropPos: parseFloat(this.dropPos?.value) || 0,
-        dropCash: parseFloat(this.dropCash?.value) || 0,
-        moneteGiornoPrecedente: parseFloat(this.moneteGiornoPrecedente?.value) || 0,
-        moneteAttuali: parseFloat(this.moneteAttuali?.value) || 0
-    };
-}
-
-showModal(type, title, message) {
-    const modal = document.getElementById('messageModal');
-    const modalBody = document.getElementById('modalBody');
-    
-    if (!modal || !modalBody) return;
-    
-    const icon = type === 'success' ? '✅' : 
-                type === 'warning' ? '⚠️' : 
-                type === 'info' ? 'ℹ️' : '❌';
-    
-    modalBody.innerHTML = `
-        <h2>${icon} ${title}</h2>
-        <p>${message}</p>
-    `;
-    modal.style.display = 'block';
-}
-
-closeModal() {
-    const modal = document.getElementById('messageModal');
-    if (modal) modal.style.display = 'none';
-}
-
-updateStatus(type, message) {
-    const dot = this.statusIndicator?.querySelector('.status-dot');
-    const text = this.statusIndicator?.querySelector('.status-text');
-    if (dot && text) {
-        dot.className = `status-dot ${type}`;
-        text.textContent = message;
+        `.trim();
+        
+        const blob = new Blob([report], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chiusura_cassa_${dateKey}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showNotification('success', 'Report esportato con successo!');
     }
-}
 
-getOverallStatus() {
-    const hasCalculationErrors = (this.verificationResult?.classList.contains('error') || false) ||
-                               (this.articoliVerification?.classList.contains('error') || false);
-    const fondoCassa = parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0;
-    if (hasCalculationErrors) return 'warning';
-    if (Math.abs(fondoCassa) > 50) return 'warning';
-    return 'ok';
-}
+    getFormValues() {
+        return {
+            scontrinatoTotale: parseFloat(this.scontrinatoTotale?.value) || 0,
+            scontrinatoContanti: parseFloat(this.scontrinatoContanti?.value) || 0,
+            scontrinatoPos: parseFloat(this.scontrinatoPos?.value) || 0,
+            art74: parseFloat(this.art74?.value) || 0,
+            art22: parseFloat(this.art22?.value) || 0,
+            dropPos: parseFloat(this.dropPos?.value) || 0,
+            dropCash: parseFloat(this.dropCash?.value) || 0,
+            moneteGiornoPrecedente: parseFloat(this.moneteGiornoPrecedente?.value) || 0,
+            moneteAttuali: parseFloat(this.moneteAttuali?.value) || 0,
+            totaleContantiCassa: parseFloat(this.totaleContantiCassa?.value) || 0
+        };
+    }
 
-getDateKey(date) {
-    return date.toISOString().split('T')[0];
-}
+    showModal(type, title, message) {
+        const modal = document.getElementById('messageModal');
+        const modalBody = document.getElementById('modalBody');
+        
+        if (!modal || !modalBody) return;
+        
+        const icon = type === 'success' ? '✅' : 
+                    type === 'warning' ? '⚠️' : 
+                    type === 'info' ? 'ℹ️' : '❌';
+        
+        modalBody.innerHTML = `
+            <h2>${icon} ${title}</h2>
+            <p>${message}</p>
+        `;
+        modal.style.display = 'block';
+    }
+
+    closeModal() {
+        const modal = document.getElementById('messageModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    updateStatus(type, message) {
+        const dot = this.statusIndicator?.querySelector('.status-dot');
+        const text = this.statusIndicator?.querySelector('.status-text');
+        if (dot && text) {
+            dot.className = `status-dot ${type}`;
+            text.textContent = message;
+        }
+    }
+
+    getOverallStatus() {
+        const hasCalculationErrors = (this.verificationResult?.classList.contains('error') || false) ||
+                                   (this.articoliVerification?.classList.contains('error') || false);
+        const fondoCassa = parseFloat(this.fondoCassaResult?.textContent.replace('€', '')) || 0;
+        if (hasCalculationErrors) return 'warning';
+        if (Math.abs(fondoCassa) > 50) return 'warning';
+        return 'ok';
+    }
+
+    getDateKey(date) {
+        return date.toISOString().split('T')[0];
+    }
 }
 
 // Inizializzazione quando il DOM è pronto
@@ -1597,4 +1605,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log('🎉 Sistema aziendale con Supabase inizializzato con successo!');
 });
-
