@@ -1,12 +1,12 @@
 // Database functions per Supabase - AGGIUNTA SENZA MODIFICARE IL RESTO
 // Configurazione Supabase
+const SUPABASE_URL = 'https://fodowfardgribthpgxxs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk';
 const USE_SUPABASE = true;
-// Usa la libreria globale per creare il client
-const { createClient } = supabase;
-const supabaseClient = createClient(
-  'https://fodowfardgribthpgxxs.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZG93ZmFyZGdyaWJ0aHBneHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA1OTkyNzIsImV4cCI6MjA2NjE3NTI3Mn0.KXvV_Lzve4sUNzM79Zp31kuzos4jGTIRqGV0UGewLfk'
-);
+
+// Inizializza Supabase correttamente
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 
 class DatabaseManager {
     constructor() {
