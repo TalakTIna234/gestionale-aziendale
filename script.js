@@ -1,3 +1,67 @@
+// Test connessione Supabase
+async function testSupabaseConnection() {
+    try {
+        console.log('🔄 Testando connessione Supabase...');
+        
+        // Test di base - verifica se il client è inizializzato
+        if (!window.supabase) {
+            throw new Error('Libreria Supabase non caricata');
+        }
+        
+        // Crea il client usando le variabili globali dall'HTML
+        const testClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Test connessione con una query semplice
+        const { data, error } = await testClient.from('fornitori').select('*').limit(1);
+        
+        if (error) {
+            console.error('❌ Errore connessione Supabase:', error);
+            showNotification('error', `Errore Supabase: ${error.message}`);
+            return false;
+        }
+        
+        console.log('✅ Connessione Supabase OK:', data);
+        showNotification('success', 'Connessione Supabase stabilita con successo!');
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Errore critico connessione Supabase:', error);
+        showNotification('error', `Errore critico: ${error.message}`);
+        return false;
+    }
+}
+
+// Test avanzato delle tabelle
+async function testSupabaseTables() {
+    const tables = ['fornitori', 'fatture', 'ricorrenze', 'chiusure_cassa'];
+    const testClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    console.log('🔍 Testando tabelle Supabase...');
+    
+    for (const table of tables) {
+        try {
+            const { data, error } = await testClient.from(table).select('*').limit(1);
+            if (error) {
+                console.error(`❌ Errore tabella ${table}:`, error);
+                showNotification('warning', `Tabella ${table} non trovata o non accessibile`);
+            } else {
+                console.log(`✅ Tabella ${table} OK`);
+            }
+        } catch (error) {
+            console.error(`❌ Errore critico tabella ${table}:`, error);
+        }
+    }
+}
+
+// Esegui test all'avvio (con delay per assicurarsi che tutto sia caricato)
+setTimeout(() => {
+    testSupabaseConnection().then(success => {
+        if (success) {
+            testSupabaseTables();
+        }
+    });
+}, 1000);
+
 // Database functions per Supabase - AGGIUNTA SENZA MODIFICARE IL RESTO
 // Configurazione Supabase
 const SUPABASE_URL = 'https://fodowfardgribthpgxxs.supabase.co';
