@@ -4,7 +4,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Sistema di notifiche migliorato
+// Sistema notifiche
 function showNotification(type, message, duration = 5000) {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
@@ -15,17 +15,13 @@ function showNotification(type, message, duration = 5000) {
             <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
         </div>
     `;
-    
     document.body.appendChild(notification);
-    
     setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
+        if (notification.parentElement) notification.remove();
     }, duration);
 }
 
-// Funzioni di utilità per Supabase
+// Funzioni Supabase
 async function saveToSupabase(table, data) {
     try {
         const { data: result, error } = await supabase
@@ -77,420 +73,165 @@ async function deleteFromSupabase(table, id) {
     }
 }
 
-// Gestione Chiusure Cassa con Supabase
-class ChiusuraCassaSystem {
-    constructor() {
-        this.initializeElements();
-        this.setupEventListeners();
-        this.loadChiusure();
-    }
-
-    initializeElements() {
-        this.form = document.getElementById('chiusuraCassaForm');
-        this.inputs = {
-            scontrinatoTotale: document.getElementById('scontrinatoTotale'),
-            scontrinatoContanti: document.getElementById('scontrinatoContanti'),
-            scontrinatoPOS: document.getElementById('scontrinatoPOS'),
-            articolo74: document.getElementById('articolo74'),
-            articolo22: document.getElementById('articolo22'),
-            dropPOS: document.getElementById('dropPOS'),
-            dropCash: document.getElementById('dropCash'),
-            moneteGiornoPrecedente: document.getElementById('moneteGiornoPrecedente'),
-            moneteAttuali: document.getElementById('moneteAttuali')
-        };
-        this.results = {
-            contantiInCassa: document.getElementById('contantiInCassa'),
-            differenzaMonete: document.getElementById('differenzaMonete'),
-            fondoCassa: document.getElementById('fondoCassaResult')
-        };
-    }
-
-    setupEventListeners() {
-        Object.values(this.inputs).forEach(input => {
-            if (input) {
-                input.addEventListener('input', () => this.calcolaAutomatico());
-            }
-        });
-
-        const salvaBtn = document.getElementById('salvaChiusura');
-        if (salvaBtn) {
-            salvaBtn.addEventListener('click', () => this.salvaChiusura());
+// Test connessione
+async function testSupabaseConnection() {
+    try {
+        console.log('Testing Supabase connection...');
+        const { data, error } = await supabase.from('chiusure_cassa').select('*').limit(1);
+        
+        if (error) {
+            console.error('Supabase Error:', error);
+            showNotification('error', `Errore Supabase: ${error.message}`);
+        } else {
+            console.log('Supabase Data:', data);
+            showNotification('success', `Connessione OK. Righe trovate: ${data.length}`);
         }
-
-        const verificaBtn = document.getElementById('verificaCompleta');
-        if (verificaBtn) {
-            verificaBtn.addEventListener('click', () => this.verificaCompleta());
-        }
+    } catch (err) {
+        console.error('Connection Error:', err);
+        showNotification('error', `Errore connessione: ${err.message}`);
     }
+}
 
-    async loadChiusure() {
-        try {
-            const chiusure = await loadFromSupabase('chiusure_cassa');
-            // Carica l'ultima chiusura se disponibile
+// Navigazione
+document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.onclick = function() {
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.main-section').forEach(sec => sec.classList.remove('active'));
+        document.getElementById(btn.dataset.section + '-section').classList.add('active');
+        
+        if(btn.dataset.section === 'dashboard') aggiornaDashboardAvanzata();
+        if(btn.dataset.section === 'calendario') {
+            if (window.calendarChiusure) window.calendarChiusure.render();
+        }
+    };
+});
+
+// Data e ora
+function updateModernDateTime() {
+    const now = new Date();
+    const dateEl = document.getElementById('modernDate');
+    const timeEl = document.getElementById('modernTime');
+    
+    if (!dateEl || !timeEl) return;
+    
+    const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    dateEl.textContent = now.toLocaleDateString('it-IT', optionsDate);
+    
+    const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    timeEl.textContent = now.toLocaleTimeString('it-IT', optionsTime);
+    
+    updateTodayRevenue();
+}
+
+// ✅ CORRETTO: Usa Supabase invece di localStorage
+async function updateTodayRevenue() {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const chiusure = await loadFromSupabase('chiusure_cassa', { data: today });
+        const revenueEl = document.getElementById('todayRevenue');
+        
+        if (revenueEl) {
             if (chiusure.length > 0) {
-                const ultimaChiusura = chiusure.sort((a, b) => new Date(b.data) - new Date(a.data))[0];
-                this.caricaChiusura(ultimaChiusura);
-            }
-        } catch (error) {
-            console.error('Errore caricamento chiusure:', error);
-        }
-    }
-
-    caricaChiusura(chiusura) {
-        Object.entries(this.inputs).forEach(([key, input]) => {
-            if (input && chiusura[key] !== undefined) {
-                input.value = chiusura[key];
-            }
-        });
-        this.calcolaAutomatico();
-    }
-
-    calcolaAutomatico() {
-        const valori = {};
-        Object.entries(this.inputs).forEach(([key, input]) => {
-            valori[key] = parseFloat(input?.value || 0);
-        });
-
-        const contantiInCassa = valori.scontrinatoContanti + valori.dropCash;
-        const differenzaMonete = valori.moneteAttuali - valori.moneteGiornoPrecedente;
-        const fondoCassa = contantiInCassa - valori.scontrinatoContanti - valori.dropCash + differenzaMonete - 100;
-
-        if (this.results.contantiInCassa) {
-            this.results.contantiInCassa.textContent = `€${contantiInCassa.toFixed(2)}`;
-        }
-        if (this.results.differenzaMonete) {
-            this.results.differenzaMonete.textContent = `€${differenzaMonete.toFixed(2)}`;
-        }
-        if (this.results.fondoCassa) {
-            this.results.fondoCassa.textContent = `€${fondoCassa.toFixed(2)}`;
-        }
-
-        this.verificaCompleta();
-    }
-
-    verificaCompleta() {
-        const scontrinatoTotale = parseFloat(this.inputs.scontrinatoTotale?.value || 0);
-        const scontrinatoContanti = parseFloat(this.inputs.scontrinatoContanti?.value || 0);
-        const scontrinatoPOS = parseFloat(this.inputs.scontrinatoPOS?.value || 0);
-        const articolo74 = parseFloat(this.inputs.articolo74?.value || 0);
-        const articolo22 = parseFloat(this.inputs.articolo22?.value || 0);
-
-        const sommaComponenti = scontrinatoContanti + scontrinatoPOS;
-        const sommaArticoli = articolo74 + articolo22;
-
-        const verificationResult = document.getElementById('verificationResult');
-        const articoliVerification = document.getElementById('articoliVerification');
-
-        if (verificationResult) {
-            if (Math.abs(scontrinatoTotale - sommaComponenti) < 0.01) {
-                verificationResult.className = 'verification-result success';
-                verificationResult.textContent = '✅ Verifica corretta: Scontrinato totale = Contanti + POS';
+                revenueEl.textContent = `€${(chiusure[0].scontrinato_totale || 0).toFixed(0)}`;
             } else {
-                verificationResult.className = 'verification-result error';
-                verificationResult.textContent = `❌ Errore: Differenza di €${(scontrinatoTotale - sommaComponenti).toFixed(2)}`;
+                revenueEl.textContent = '€0';
             }
         }
-
-        if (articoliVerification) {
-            if (Math.abs(scontrinatoTotale - sommaArticoli) < 0.01) {
-                articoliVerification.className = 'articoli-verification success';
-                articoliVerification.textContent = '✅ Verifica articoli corretta: Scontrinato = Art.74 + Art.22';
-            } else {
-                articoliVerification.className = 'articoli-verification error';
-                articoliVerification.textContent = `❌ Errore articoli: Differenza di €${(scontrinatoTotale - sommaArticoli).toFixed(2)}`;
-            }
-        }
-    }
-
-    async salvaChiusura() {
-        try {
-            const oggi = new Date().toISOString().split('T')[0];
-            const chiusuraData = {
-                id: oggi, // Usa la data come ID
-                data: oggi,
-                scontrinatoTotale: parseFloat(this.inputs.scontrinatoTotale?.value || 0),
-                scontrinatoContanti: parseFloat(this.inputs.scontrinatoContanti?.value || 0),
-                scontrinatoPOS: parseFloat(this.inputs.scontrinatoPOS?.value || 0),
-                articolo74: parseFloat(this.inputs.articolo74?.value || 0),
-                articolo22: parseFloat(this.inputs.articolo22?.value || 0),
-                dropPOS: parseFloat(this.inputs.dropPOS?.value || 0),
-                dropCash: parseFloat(this.inputs.dropCash?.value || 0),
-                moneteGiornoPrecedente: parseFloat(this.inputs.moneteGiornoPrecedente?.value || 0),
-                moneteAttuali: parseFloat(this.inputs.moneteAttuali?.value || 0),
-                contantiInCassa: parseFloat(this.results.contantiInCassa?.textContent.replace('€', '') || 0),
-                fondoCassa: parseFloat(this.results.fondoCassa?.textContent.replace('€', '') || 0),
-                created_at: new Date().toISOString()
-            };
-
-            await saveToSupabase('chiusure_cassa', chiusuraData);
-            showNotification('success', 'Chiusura cassa salvata con successo!');
-            
-            // Aggiorna la dashboard
-            if (typeof aggiornaDashboardAvanzata === 'function') {
-                aggiornaDashboardAvanzata();
-            }
-        } catch (error) {
-            showNotification('error', 'Errore nel salvataggio della chiusura cassa');
-        }
+    } catch (error) {
+        console.error('Errore aggiornamento ricavi oggi:', error);
     }
 }
 
-// Gestione Fatture con Supabase
-async function salvaFattura(event) {
-    event.preventDefault();
-    
+// Backup da Supabase
+async function backupData() {
     try {
-        const formData = new FormData(event.target);
-        const fatturaData = {
-            fornitore: formData.get('fornitore'),
-            importo: parseFloat(formData.get('importo')),
-            descrizione: formData.get('descrizione'),
-            data: formData.get('dataFattura'),
-            scadenza: formData.get('scadenza'),
-            modalitaPagamento: formData.get('modalitaPagamento'),
-            stato: formData.get('stato'),
-            created_at: new Date().toISOString()
+        showNotification('info', 'Creazione backup in corso...');
+        
+        const [chiusure, fatture, fornitori, ricorrenze] = await Promise.all([
+            loadFromSupabase('chiusure_cassa'),
+            loadFromSupabase('fatture'),
+            loadFromSupabase('fornitori'),
+            loadFromSupabase('ricorrenze')
+        ]);
+        
+        const backupData = {
+            timestamp: new Date().toISOString(),
+            chiusure_cassa: chiusure,
+            fatture: fatture,
+            fornitori: fornitori,
+            ricorrenze: ricorrenze
         };
-
-        await saveToSupabase('fatture', fatturaData);
-        showNotification('success', 'Fattura salvata con successo!');
         
-        event.target.reset();
-        await mostraFatture();
+        const dataStr = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backup_gestionale_supabase_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
         
-        if (typeof aggiornaDashboardAvanzata === 'function') {
-            aggiornaDashboardAvanzata();
-        }
+        showNotification('success', 'Backup completato con successo!');
     } catch (error) {
-        showNotification('error', 'Errore nel salvataggio della fattura');
+        showNotification('error', 'Errore durante il backup');
     }
 }
 
-async function mostraFatture() {
-    try {
-        const fatture = await loadFromSupabase('fatture');
-        const container = document.getElementById('fattureContainer');
-        
-        if (!container) return;
-
-        if (fatture.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nessuna fattura presente</div>';
-            return;
-        }
-
-        // Applica filtri
-        const filtroStato = document.getElementById('filtroStato')?.value || 'tutti';
-        const filtroFornitore = document.getElementById('filtroFornitore')?.value || 'tutti';
-        const filtroRicerca = document.getElementById('filtroRicerca')?.value.toLowerCase() || '';
-
-        let fattureFiltrate = fatture.filter(fattura => {
-            const matchStato = filtroStato === 'tutti' || fattura.stato === filtroStato;
-            const matchFornitore = filtroFornitore === 'tutti' || fattura.fornitore === filtroFornitore;
-            const matchRicerca = !filtroRicerca || 
-                fattura.descrizione.toLowerCase().includes(filtroRicerca) ||
-                fattura.fornitore.toLowerCase().includes(filtroRicerca);
-            
-            return matchStato && matchFornitore && matchRicerca;
-        });
-
-        // Ordina per data di scadenza
-        fattureFiltrate.sort((a, b) => new Date(a.scadenza) - new Date(b.scadenza));
-
-        container.innerHTML = fattureFiltrate.map(fattura => {
-            const isScaduta = new Date(fattura.scadenza) < new Date() && fattura.stato === 'da pagare';
-            const cardClass = fattura.stato === 'pagata' ? 'pagata' : isScaduta ? 'scaduta' : '';
-            
-            return `
-                <div class="fattura-card ${cardClass}">
-                    <div class="fattura-header">
-                        <div class="fattura-fornitore">${fattura.fornitore}</div>
-                        <div class="fattura-importo">€${fattura.importo.toFixed(2)}</div>
-                    </div>
-                    <div class="fattura-status ${fattura.stato.replace(' ', '-')}">${fattura.stato.toUpperCase()}</div>
-                    <div class="fattura-details">
-                        <div class="fattura-detail">
-                            <div class="fattura-detail-label">Data Fattura</div>
-                            <div class="fattura-detail-value">${new Date(fattura.data).toLocaleDateString('it-IT')}</div>
-                        </div>
-                        <div class="fattura-detail">
-                            <div class="fattura-detail-label">Scadenza</div>
-                            <div class="fattura-detail-value">${new Date(fattura.scadenza).toLocaleDateString('it-IT')}</div>
-                        </div>
-                        <div class="fattura-detail">
-                            <div class="fattura-detail-label">Pagamento</div>
-                            <div class="fattura-detail-value">${fattura.modalitaPagamento}</div>
-                        </div>
-                    </div>
-                    <div class="fattura-descrizione">${fattura.descrizione}</div>
-                    <div class="fattura-actions">
-                        <button class="btn-edit" onclick="modificaFattura(${fattura.id})">Modifica</button>
-                        <button class="btn-delete" onclick="eliminaFattura(${fattura.id})">Elimina</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-    } catch (error) {
-        console.error('Errore caricamento fatture:', error);
-        showNotification('error', 'Errore nel caricamento delle fatture');
-    }
+function toggleNotifications() {
+    showNotification('info', 'Sistema notifiche in arrivo!');
 }
 
-async function eliminaFattura(id) {
-    if (confirm('Sei sicuro di voler eliminare questa fattura?')) {
-        try {
-            await deleteFromSupabase('fatture', id);
-            await mostraFatture();
-            
-            if (typeof aggiornaDashboardAvanzata === 'function') {
-                aggiornaDashboardAvanzata();
-            }
-        } catch (error) {
-            showNotification('error', 'Errore nell\'eliminazione della fattura');
-        }
-    }
+function openSettings() {
+    showNotification('info', 'Pannello impostazioni in arrivo!');
 }
 
-// Gestione Fornitori con Supabase
-async function caricaFornitori() {
-    try {
-        const fornitori = await loadFromSupabase('fornitori');
-        const select = document.getElementById('fornitore');
-        const filtroSelect = document.getElementById('filtroFornitore');
-        
-        if (select) {
-            select.innerHTML = '<option value="">Seleziona fornitore...</option>';
-            fornitori.forEach(fornitore => {
-                select.innerHTML += `<option value="${fornitore.nome}">${fornitore.nome}</option>`;
-            });
-        }
-        
-        if (filtroSelect) {
-            filtroSelect.innerHTML = '<option value="tutti">Tutti i fornitori</option>';
-            fornitori.forEach(fornitore => {
-                filtroSelect.innerHTML += `<option value="${fornitore.nome}">${fornitore.nome}</option>`;
-            });
-        }
-        
-        mostraFornitoriList(fornitori);
-    } catch (error) {
-        console.error('Errore caricamento fornitori:', error);
-    }
-}
+// Dashboard con Supabase
+let dashboardCharts = {};
 
-function mostraFornitoriList(fornitori) {
-    const container = document.getElementById('fornitoriList');
-    if (!container) return;
+function getPeriodoDateRange(period, year = new Date().getFullYear()) {
+    const now = new Date();
+    let start, end;
     
-    container.innerHTML = fornitori.map(fornitore => `
-        <div class="fornitore-tag">
-            ${fornitore.nome}
-            <button class="remove-btn" onclick="eliminaFornitore(${fornitore.id})">×</button>
-        </div>
-    `).join('');
-}
-
-async function aggiungiFornitore() {
-    const input = document.getElementById('nuovoFornitore');
-    const nome = input?.value.trim();
-    
-    if (!nome) {
-        showNotification('warning', 'Inserisci il nome del fornitore');
-        return;
+    if (period === 'week') {
+        const day = now.getDay() || 7;
+        start = new Date(now);
+        start.setDate(now.getDate() - day + 1);
+        end = new Date(now);
+        end.setDate(start.getDate() + 6);
+    } else if (period === 'month') {
+        start = new Date(year, now.getMonth(), 1);
+        end = new Date(year, now.getMonth() + 1, 0);
+    } else if (period === 'quarter') {
+        const quarter = Math.floor(now.getMonth() / 3);
+        start = new Date(year, quarter * 3, 1);
+        end = new Date(year, quarter * 3 + 3, 0);
+    } else if (period === 'year') {
+        start = new Date(year, 0, 1);
+        end = new Date(year, 11, 31);
+    } else {
+        start = new Date(2000, 0, 1);
+        end = new Date(2100, 0, 1);
     }
     
-    try {
-        await saveToSupabase('fornitori', { nome, created_at: new Date().toISOString() });
-        showNotification('success', 'Fornitore aggiunto con successo!');
-        input.value = '';
-        await caricaFornitori();
-    } catch (error) {
-        showNotification('error', 'Errore nell\'aggiunta del fornitore');
-    }
+    return {start, end};
 }
 
-async function eliminaFornitore(id) {
-    if (confirm('Sei sicuro di voler eliminare questo fornitore?')) {
-        try {
-            await deleteFromSupabase('fornitori', id);
-            await caricaFornitori();
-        } catch (error) {
-            showNotification('error', 'Errore nell\'eliminazione del fornitore');
-        }
-    }
-}
-
-// Gestione Ricorrenze con Supabase
-async function salvaRicorrenza(event) {
-    event.preventDefault();
+async function aggiornaDashboardAvanzata() {
+    const period = document.getElementById('dashboardPeriod')?.value || 'month';
+    const year = parseInt(document.getElementById('dashboardYear')?.value || new Date().getFullYear());
+    const {start, end} = getPeriodoDateRange(period, year);
     
-    try {
-        const formData = new FormData(event.target);
-        const ricorrenzaData = {
-            tipo: formData.get('tipoRicorrenza'),
-            nome: formData.get('nomeRicorrenza'),
-            importo: parseFloat(formData.get('importoRicorrenza')),
-            frequenza: formData.get('frequenzaRicorrenza'),
-            created_at: new Date().toISOString()
-        };
-
-        await saveToSupabase('ricorrenze', ricorrenzaData);
-        showNotification('success', 'Ricorrenza salvata con successo!');
-        
-        event.target.reset();
-        await mostraRicorrenze();
-        
-        if (typeof aggiornaDashboardAvanzata === 'function') {
-            aggiornaDashboardAvanzata();
-        }
-    } catch (error) {
-        showNotification('error', 'Errore nel salvataggio della ricorrenza');
-    }
+    const datiFinanziari = await raccogliDatiFinanziariSupabase(start, end);
+    
+    aggiornaKPI(datiFinanziari);
+    aggiornaSezioniDettagliate(datiFinanziari);
+    aggiornaGrafici(datiFinanziari, period, year);
+    generaAlert(datiFinanziari);
+    calcolaPrevisioni(datiFinanziari);
 }
 
-async function mostraRicorrenze() {
-    try {
-        const ricorrenze = await loadFromSupabase('ricorrenze');
-        const container = document.getElementById('ricorrenzeContainer');
-        
-        if (!container) return;
-
-        if (ricorrenze.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nessuna ricorrenza presente</div>';
-            return;
-        }
-
-        container.innerHTML = ricorrenze.map(ricorrenza => `
-            <div class="ricorrenza-item">
-                <b>${ricorrenza.tipo === 'entrata' ? '💰' : '📤'} ${ricorrenza.nome}</b> - 
-                €${ricorrenza.importo.toFixed(2)} - 
-                ${ricorrenza.frequenza} 
-                <button class="btn-delete" style="margin-left: 10px; padding: 5px 10px;" onclick="eliminaRicorrenza(${ricorrenza.id})">Elimina</button>
-            </div>
-        `).join('');
-
-    } catch (error) {
-        console.error('Errore caricamento ricorrenze:', error);
-        showNotification('error', 'Errore nel caricamento delle ricorrenze');
-    }
-}
-
-async function eliminaRicorrenza(id) {
-    if (confirm('Sei sicuro di voler eliminare questa ricorrenza?')) {
-        try {
-            await deleteFromSupabase('ricorrenze', id);
-            await mostraRicorrenze();
-            
-            if (typeof aggiornaDashboardAvanzata === 'function') {
-                aggiornaDashboardAvanzata();
-            }
-        } catch (error) {
-            showNotification('error', 'Errore nell\'eliminazione della ricorrenza');
-        }
-    }
-}
-
-// Dashboard con dati da Supabase
+// ✅ CORRETTO: Usa Supabase invece di localStorage
 async function raccogliDatiFinanziariSupabase(start, end) {
     try {
         // Carica chiusure cassa
@@ -510,7 +251,7 @@ async function raccogliDatiFinanziariSupabase(start, end) {
         // Carica ricorrenze
         const ricorrenze = await loadFromSupabase('ricorrenze');
 
-        const ricaviCassa = chiusureFiltrate.reduce((sum, c) => sum + (c.scontrinatoTotale || 0), 0);
+        const ricaviCassa = chiusureFiltrate.reduce((sum, c) => sum + (c.scontrinato_totale || 0), 0);
         const entrateRicorrenti = calcolaRicorrenze(ricorrenze, 'entrata', start, end);
         const usciteRicorrenti = calcolaRicorrenze(ricorrenze, 'uscita', start, end);
         const fatturepagate = fattureFiltrate.filter(f => f.stato === 'pagata').reduce((sum, f) => sum + f.importo, 0);
@@ -550,153 +291,13 @@ async function raccogliDatiFinanziariSupabase(start, end) {
         console.error('Errore raccolta dati finanziari:', error);
         showNotification('error', 'Errore nel caricamento dei dati finanziari');
         return {
-            chiusure: [],
-            fatture: [],
-            ricorrenze: [],
-            ricaviCassa: 0,
-            entrateRicorrenti: 0,
-            usciteRicorrenti: 0,
-            fatturepagate: 0,
-            fatturePendenti: 0,
-            fattureScadute: 0,
-            totaleEntrate: 0,
-            totaleUscite: 0,
-            utileNetto: 0,
-            ivaVendite: 0,
-            ivaAcquisti: 0,
-            ivaNettaDaVersare: 0,
-            start,
-            end
+            chiusure: [], fatture: [], ricorrenze: [], ricaviCassa: 0,
+            entrateRicorrenti: 0, usciteRicorrenti: 0, fatturepagate: 0,
+            fatturePendenti: 0, fattureScadute: 0, totaleEntrate: 0,
+            totaleUscite: 0, utileNetto: 0, ivaVendite: 0, ivaAcquisti: 0,
+            ivaNettaDaVersare: 0, start, end
         };
     }
-}
-
-// Aggiorna la funzione principale della dashboard
-async function aggiornaDashboardAvanzata() {
-    const period = document.getElementById('dashboardPeriod')?.value || 'month';
-    const year = parseInt(document.getElementById('dashboardYear')?.value || new Date().getFullYear());
-    const {start, end} = getPeriodoDateRange(period, year);
-    
-    const datiFinanziari = await raccogliDatiFinanziariSupabase(start, end);
-    
-    aggiornaKPI(datiFinanziari);
-    aggiornaSezioniDettagliate(datiFinanziari);
-    aggiornaGrafici(datiFinanziari, period, year);
-    generaAlert(datiFinanziari);
-    calcolaPrevisioni(datiFinanziari);
-}
-
-// Funzione di backup che ora esporta da Supabase
-async function backupData() {
-    try {
-        showNotification('info', 'Creazione backup in corso...');
-        
-        const [chiusure, fatture, fornitori, ricorrenze] = await Promise.all([
-            loadFromSupabase('chiusure_cassa'),
-            loadFromSupabase('fatture'),
-            loadFromSupabase('fornitori'),
-            loadFromSupabase('ricorrenze')
-        ]);
-        
-        const backupData = {
-            timestamp: new Date().toISOString(),
-            chiusure_cassa: chiusure,
-            fatture: fatture,
-            fornitori: fornitori,
-            ricorrenze: ricorrenze
-        };
-        
-        const dataStr = JSON.stringify(backupData, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `backup_gestionale_supabase_${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        showNotification('success', 'Backup completato con successo!');
-    } catch (error) {
-        showNotification('error', 'Errore durante il backup');
-    }
-}
-
-// Mantieni tutte le altre funzioni esistenti (navigation, calendar, etc.)
-document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.onclick = function() {
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.querySelectorAll('.main-section').forEach(sec => sec.classList.remove('active'));
-        document.getElementById(btn.dataset.section + '-section').classList.add('active');
-        
-        if(btn.dataset.section === 'dashboard') aggiornaDashboardAvanzata();
-        if(btn.dataset.section === 'calendario') {
-            if (window.calendarChiusure) window.calendarChiusure.render();
-        }
-    };
-});
-
-function updateModernDateTime() {
-    const now = new Date();
-    const dateEl = document.getElementById('modernDate');
-    const timeEl = document.getElementById('modernTime');
-    
-    if (!dateEl || !timeEl) return;
-    
-    const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    dateEl.textContent = now.toLocaleDateString('it-IT', optionsDate);
-    
-    const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
-    timeEl.textContent = now.toLocaleTimeString('it-IT', optionsTime);
-    
-    updateTodayRevenue();
-}
-
-async function updateTodayRevenue() {
-    try {
-        const today = new Date().toISOString().split('T')[0];
-        const chiusure = await loadFromSupabase('chiusure_cassa', { data: today });
-        const revenueEl = document.getElementById('todayRevenue');
-        
-        if (revenueEl) {
-            if (chiusure.length > 0) {
-                revenueEl.textContent = `€${(chiusure[0].scontrinatoTotale || 0).toFixed(0)}`;
-            } else {
-                revenueEl.textContent = '€0';
-            }
-        }
-    } catch (error) {
-        console.error('Errore aggiornamento ricavi oggi:', error);
-    }
-}
-
-// Mantieni tutte le altre funzioni esistenti per i grafici e il calendario
-function getPeriodoDateRange(period, year = new Date().getFullYear()) {
-    const now = new Date();
-    let start, end;
-    
-    if (period === 'week') {
-        const day = now.getDay() || 7;
-        start = new Date(now);
-        start.setDate(now.getDate() - day + 1);
-        end = new Date(now);
-        end.setDate(start.getDate() + 6);
-    } else if (period === 'month') {
-        start = new Date(year, now.getMonth(), 1);
-        end = new Date(year, now.getMonth() + 1, 0);
-    } else if (period === 'quarter') {
-        const quarter = Math.floor(now.getMonth() / 3);
-        start = new Date(year, quarter * 3, 1);
-        end = new Date(year, quarter * 3 + 3, 0);
-    } else if (period === 'year') {
-        start = new Date(year, 0, 1);
-        end = new Date(year, 11, 31);
-    } else {
-        start = new Date(2000, 0, 1);
-        end = new Date(2100, 0, 1);
-    }
-    
-    return {start, end};
 }
 
 function calcolaRicorrenze(ricorrenze, tipo, start, end) {
@@ -810,8 +411,6 @@ function generaAlert(dati) {
         `).join('') : 
         '<div class="alert info"><span style="font-size: 1.2em;">ℹ️</span>Tutto sotto controllo! Nessun alert al momento.</div>';
 }
-
-let dashboardCharts = {};
 
 function aggiornaGrafici(dati, period, year) {
     Object.values(dashboardCharts).forEach(chart => {
@@ -992,7 +591,435 @@ async function creaGraficoTrendIVA(dati, year) {
     });
 }
 
-// Mantieni le classi esistenti per il calendario
+// Gestione Chiusure Cassa
+class ChiusuraCassaSystem {
+    constructor() {
+        this.initializeElements();
+        this.setupEventListeners();
+        this.loadChiusure();
+    }
+
+    initializeElements() {
+        this.form = document.getElementById('chiusuraCassaForm');
+        this.inputs = {
+            scontrinatoTotale: document.getElementById('scontrinatoTotale'),
+            scontrinatoContanti: document.getElementById('scontrinatoContanti'),
+            scontrinatoPOS: document.getElementById('scontrinatoPOS'),
+            articolo74: document.getElementById('articolo74'),
+            articolo22: document.getElementById('articolo22'),
+            dropPOS: document.getElementById('dropPOS'),
+            dropCash: document.getElementById('dropCash'),
+            moneteGiornoPrecedente: document.getElementById('moneteGiornoPrecedente'),
+            moneteAttuali: document.getElementById('moneteAttuali')
+        };
+        this.results = {
+            contantiInCassa: document.getElementById('contantiInCassa'),
+            differenzaMonete: document.getElementById('differenzaMonete'),
+            fondoCassa: document.getElementById('fondoCassaResult')
+        };
+    }
+
+    setupEventListeners() {
+        Object.values(this.inputs).forEach(input => {
+            if (input) {
+                input.addEventListener('input', () => this.calcolaAutomatico());
+            }
+        });
+
+        const salvaBtn = document.getElementById('salvaChiusura');
+        if (salvaBtn) {
+            salvaBtn.addEventListener('click', () => this.salvaChiusura());
+        }
+
+        const verificaBtn = document.getElementById('verificaCompleta');
+        if (verificaBtn) {
+            verificaBtn.addEventListener('click', () => this.verificaCompleta());
+        }
+    }
+
+    async loadChiusure() {
+        try {
+            const chiusure = await loadFromSupabase('chiusure_cassa');
+            if (chiusure.length > 0) {
+                const ultimaChiusura = chiusure.sort((a, b) => new Date(b.data) - new Date(a.data))[0];
+                this.caricaChiusura(ultimaChiusura);
+            }
+        } catch (error) {
+            console.error('Errore caricamento chiusure:', error);
+        }
+    }
+
+    caricaChiusura(chiusura) {
+        // Mappa i nomi delle colonne del database ai nomi degli input
+        const mapping = {
+            scontrinato_totale: 'scontrinatoTotale',
+            scontrinato_contanti: 'scontrinatoContanti',
+            scontrinato_pos: 'scontrinatoPOS',
+            articolo_74: 'articolo74',
+            articolo_22: 'articolo22',
+            drop_pos: 'dropPOS',
+            drop_cash: 'dropCash',
+            monete_giorno_precedente: 'moneteGiornoPrecedente',
+            monete_attuali: 'moneteAttuali'
+        };
+
+        Object.entries(mapping).forEach(([dbField, inputKey]) => {
+            const input = this.inputs[inputKey];
+            if (input && chiusura[dbField] !== undefined) {
+                input.value = chiusura[dbField];
+            }
+        });
+        this.calcolaAutomatico();
+    }
+
+    calcolaAutomatico() {
+        const valori = {};
+        Object.entries(this.inputs).forEach(([key, input]) => {
+            valori[key] = parseFloat(input?.value || 0);
+        });
+
+        const contantiInCassa = valori.scontrinatoContanti + valori.dropCash;
+        const differenzaMonete = valori.moneteAttuali - valori.moneteGiornoPrecedente;
+        const fondoCassa = contantiInCassa - valori.scontrinatoContanti - valori.dropCash + differenzaMonete - 100;
+
+        if (this.results.contantiInCassa) {
+            this.results.contantiInCassa.textContent = `€${contantiInCassa.toFixed(2)}`;
+        }
+        if (this.results.differenzaMonete) {
+            this.results.differenzaMonete.textContent = `€${differenzaMonete.toFixed(2)}`;
+        }
+        if (this.results.fondoCassa) {
+            this.results.fondoCassa.textContent = `€${fondoCassa.toFixed(2)}`;
+        }
+
+        this.verificaCompleta();
+    }
+
+    verificaCompleta() {
+        const scontrinatoTotale = parseFloat(this.inputs.scontrinatoTotale?.value || 0);
+        const scontrinatoContanti = parseFloat(this.inputs.scontrinatoContanti?.value || 0);
+        const scontrinatoPOS = parseFloat(this.inputs.scontrinatoPOS?.value || 0);
+        const articolo74 = parseFloat(this.inputs.articolo74?.value || 0);
+        const articolo22 = parseFloat(this.inputs.articolo22?.value || 0);
+
+        const sommaComponenti = scontrinatoContanti + scontrinatoPOS;
+        const sommaArticoli = articolo74 + articolo22;
+
+        const verificationResult = document.getElementById('verificationResult');
+        const articoliVerification = document.getElementById('articoliVerification');
+
+        if (verificationResult) {
+            if (Math.abs(scontrinatoTotale - sommaComponenti) < 0.01) {
+                verificationResult.className = 'verification-result success';
+                verificationResult.textContent = '✅ Verifica corretta: Scontrinato totale = Contanti + POS';
+            } else {
+                verificationResult.className = 'verification-result error';
+                verificationResult.textContent = `❌ Errore: Differenza di €${(scontrinatoTotale - sommaComponenti).toFixed(2)}`;
+            }
+        }
+
+        if (articoliVerification) {
+            if (Math.abs(scontrinatoTotale - sommaArticoli) < 0.01) {
+                articoliVerification.className = 'articoli-verification success';
+                articoliVerification.textContent = '✅ Verifica articoli corretta: Scontrinato = Art.74 + Art.22';
+            } else {
+                articoliVerification.className = 'articoli-verification error';
+                articoliVerification.textContent = `❌ Errore articoli: Differenza di €${(scontrinatoTotale - sommaArticoli).toFixed(2)}`;
+            }
+        }
+    }
+
+    async salvaChiusura() {
+        try {
+            const oggi = new Date().toISOString().split('T')[0];
+            const chiusuraData = {
+                id: oggi,
+                data: oggi,
+                scontrinato_totale: parseFloat(this.inputs.scontrinatoTotale?.value || 0),
+                scontrinato_contanti: parseFloat(this.inputs.scontrinatoContanti?.value || 0),
+                scontrinato_pos: parseFloat(this.inputs.scontrinatoPOS?.value || 0),
+                articolo_74: parseFloat(this.inputs.articolo74?.value || 0),
+                articolo_22: parseFloat(this.inputs.articolo22?.value || 0),
+                drop_pos: parseFloat(this.inputs.dropPOS?.value || 0),
+                drop_cash: parseFloat(this.inputs.dropCash?.value || 0),
+                monete_giorno_precedente: parseFloat(this.inputs.moneteGiornoPrecedente?.value || 0),
+                monete_attuali: parseFloat(this.inputs.moneteAttuali?.value || 0),
+                contanti_in_cassa: parseFloat(this.results.contantiInCassa?.textContent.replace('€', '') || 0),
+                fondo_cassa: parseFloat(this.results.fondoCassa?.textContent.replace('€', '') || 0),
+                created_at: new Date().toISOString()
+            };
+
+            await saveToSupabase('chiusure_cassa', chiusuraData);
+            showNotification('success', 'Chiusura cassa salvata con successo!');
+            
+            if (typeof aggiornaDashboardAvanzata === 'function') {
+                aggiornaDashboardAvanzata();
+            }
+        } catch (error) {
+            showNotification('error', 'Errore nel salvataggio della chiusura cassa');
+        }
+    }
+}
+
+// Gestione Fatture
+async function salvaFattura(event) {
+    event.preventDefault();
+    
+    try {
+        const formData = new FormData(event.target);
+        const fatturaData = {
+            fornitore: formData.get('fornitore'),
+            importo: parseFloat(formData.get('importo')),
+            descrizione: formData.get('descrizione'),
+            data: formData.get('dataFattura'),
+            scadenza: formData.get('scadenza'),
+            modalita_pagamento: formData.get('modalitaPagamento'),
+            stato: formData.get('stato'),
+            created_at: new Date().toISOString()
+        };
+
+        await saveToSupabase('fatture', fatturaData);
+        showNotification('success', 'Fattura salvata con successo!');
+        
+        event.target.reset();
+        await mostraFatture();
+        
+        if (typeof aggiornaDashboardAvanzata === 'function') {
+            aggiornaDashboardAvanzata();
+        }
+    } catch (error) {
+        showNotification('error', 'Errore nel salvataggio della fattura');
+    }
+}
+
+async function mostraFatture() {
+    try {
+        const fatture = await loadFromSupabase('fatture');
+        const container = document.getElementById('fattureContainer');
+        
+        if (!container) return;
+
+        if (fatture.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nessuna fattura presente</div>';
+            return;
+        }
+
+        // Applica filtri
+        const filtroStato = document.getElementById('filtroStato')?.value || 'tutti';
+        const filtroFornitore = document.getElementById('filtroFornitore')?.value || 'tutti';
+        const filtroRicerca = document.getElementById('filtroRicerca')?.value.toLowerCase() || '';
+
+        let fattureFiltrate = fatture.filter(fattura => {
+            const matchStato = filtroStato === 'tutti' || fattura.stato === filtroStato;
+            const matchFornitore = filtroFornitore === 'tutti' || fattura.fornitore === filtroFornitore;
+            const matchRicerca = !filtroRicerca || 
+                (fattura.descrizione && fattura.descrizione.toLowerCase().includes(filtroRicerca)) ||
+                (fattura.fornitore && fattura.fornitore.toLowerCase().includes(filtroRicerca));
+            
+            return matchStato && matchFornitore && matchRicerca;
+        });
+
+        fattureFiltrate.sort((a, b) => new Date(a.scadenza) - new Date(b.scadenza));
+
+        container.innerHTML = fattureFiltrate.map(fattura => {
+            const isScaduta = new Date(fattura.scadenza) < new Date() && fattura.stato === 'da pagare';
+            const cardClass = fattura.stato === 'pagata' ? 'pagata' : isScaduta ? 'scaduta' : '';
+            
+            return `
+                <div class="fattura-card ${cardClass}">
+                    <div class="fattura-header">
+                        <div class="fattura-fornitore">${fattura.fornitore || 'N/A'}</div>
+                        <div class="fattura-importo">€${(fattura.importo || 0).toFixed(2)}</div>
+                    </div>
+                    <div class="fattura-status ${(fattura.stato || 'da-pagare').replace(' ', '-')}">${(fattura.stato || 'da pagare').toUpperCase()}</div>
+                    <div class="fattura-details">
+                        <div class="fattura-detail">
+                            <div class="fattura-detail-label">Data Fattura</div>
+                            <div class="fattura-detail-value">${fattura.data ? new Date(fattura.data).toLocaleDateString('it-IT') : 'N/A'}</div>
+                        </div>
+                        <div class="fattura-detail">
+                            <div class="fattura-detail-label">Scadenza</div>
+                            <div class="fattura-detail-value">${fattura.scadenza ? new Date(fattura.scadenza).toLocaleDateString('it-IT') : 'N/A'}</div>
+                        </div>
+                        <div class="fattura-detail">
+                            <div class="fattura-detail-label">Pagamento</div>
+                            <div class="fattura-detail-value">${fattura.modalita_pagamento || 'N/A'}</div>
+                        </div>
+                    </div>
+                    <div class="fattura-descrizione">${fattura.descrizione || 'Nessuna descrizione'}</div>
+                    <div class="fattura-actions">
+                        <button class="btn-edit" onclick="modificaFattura(${fattura.id})">Modifica</button>
+                        <button class="btn-delete" onclick="eliminaFattura(${fattura.id})">Elimina</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Errore caricamento fatture:', error);
+        showNotification('error', 'Errore nel caricamento delle fatture');
+    }
+}
+
+async function eliminaFattura(id) {
+    if (confirm('Sei sicuro di voler eliminare questa fattura?')) {
+        try {
+            await deleteFromSupabase('fatture', id);
+            await mostraFatture();
+            
+            if (typeof aggiornaDashboardAvanzata === 'function') {
+                aggiornaDashboardAvanzata();
+            }
+        } catch (error) {
+            showNotification('error', 'Errore nell\'eliminazione della fattura');
+        }
+    }
+}
+
+function modificaFattura(id) {
+    showNotification('info', 'Funzione modifica fattura in sviluppo');
+}
+
+// Gestione Fornitori
+async function caricaFornitori() {
+    try {
+        const fornitori = await loadFromSupabase('fornitori');
+        const select = document.getElementById('fornitore');
+        const filtroSelect = document.getElementById('filtroFornitore');
+        
+        if (select) {
+            select.innerHTML = '<option value="">Seleziona fornitore...</option>';
+            fornitori.forEach(fornitore => {
+                select.innerHTML += `<option value="${fornitore.nome}">${fornitore.nome}</option>`;
+            });
+        }
+        
+        if (filtroSelect) {
+            filtroSelect.innerHTML = '<option value="tutti">Tutti i fornitori</option>';
+            fornitori.forEach(fornitore => {
+                filtroSelect.innerHTML += `<option value="${fornitore.nome}">${fornitore.nome}</option>`;
+            });
+        }
+        
+        mostraFornitoriList(fornitori);
+    } catch (error) {
+        console.error('Errore caricamento fornitori:', error);
+    }
+}
+
+function mostraFornitoriList(fornitori) {
+    const container = document.getElementById('fornitoriList');
+    if (!container) return;
+    
+    container.innerHTML = fornitori.map(fornitore => `
+        <div class="fornitore-tag">
+            ${fornitore.nome}
+            <button class="remove-btn" onclick="eliminaFornitore(${fornitore.id})">×</button>
+        </div>
+    `).join('');
+}
+
+async function aggiungiFornitore() {
+    const input = document.getElementById('nuovoFornitore');
+    const nome = input?.value.trim();
+    
+    if (!nome) {
+        showNotification('warning', 'Inserisci il nome del fornitore');
+        return;
+    }
+    
+    try {
+        await saveToSupabase('fornitori', { nome, created_at: new Date().toISOString() });
+        showNotification('success', 'Fornitore aggiunto con successo!');
+        input.value = '';
+        await caricaFornitori();
+    } catch (error) {
+        showNotification('error', 'Errore nell\'aggiunta del fornitore');
+    }
+}
+
+async function eliminaFornitore(id) {
+    if (confirm('Sei sicuro di voler eliminare questo fornitore?')) {
+        try {
+            await deleteFromSupabase('fornitori', id);
+            await caricaFornitori();
+        } catch (error) {
+            showNotification('error', 'Errore nell\'eliminazione del fornitore');
+        }
+    }
+}
+
+// Gestione Ricorrenze
+async function salvaRicorrenza(event) {
+    event.preventDefault();
+    
+    try {
+        const formData = new FormData(event.target);
+        const ricorrenzaData = {
+            tipo: formData.get('tipoRicorrenza'),
+            nome: formData.get('nomeRicorrenza'),
+            importo: parseFloat(formData.get('importoRicorrenza')),
+            frequenza: formData.get('frequenzaRicorrenza'),
+            created_at: new Date().toISOString()
+        };
+
+        await saveToSupabase('ricorrenze', ricorrenzaData);
+        showNotification('success', 'Ricorrenza salvata con successo!');
+        
+        event.target.reset();
+        await mostraRicorrenze();
+        
+        if (typeof aggiornaDashboardAvanzata === 'function') {
+            aggiornaDashboardAvanzata();
+        }
+    } catch (error) {
+        showNotification('error', 'Errore nel salvataggio della ricorrenza');
+    }
+}
+
+async function mostraRicorrenze() {
+    try {
+        const ricorrenze = await loadFromSupabase('ricorrenze');
+        const container = document.getElementById('ricorrenzeContainer');
+        
+        if (!container) return;
+
+        if (ricorrenze.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nessuna ricorrenza presente</div>';
+            return;
+        }
+
+        container.innerHTML = ricorrenze.map(ricorrenza => `
+            <div class="ricorrenza-item">
+                <b>${ricorrenza.tipo === 'entrata' ? '💰' : '📤'} ${ricorrenza.nome}</b> - 
+                €${ricorrenza.importo.toFixed(2)} - 
+                ${ricorrenza.frequenza} 
+                <button class="btn-delete" style="margin-left: 10px; padding: 5px 10px;" onclick="eliminaRicorrenza(${ricorrenza.id})">Elimina</button>
+            </div>
+        `).join('');
+
+    } catch (error) {
+        console.error('Errore caricamento ricorrenze:', error);
+        showNotification('error', 'Errore nel caricamento delle ricorrenze');
+    }
+}
+
+async function eliminaRicorrenza(id) {
+    if (confirm('Sei sicuro di voler eliminare questa ricorrenza?')) {
+        try {
+            await deleteFromSupabase('ricorrenze', id);
+            await mostraRicorrenze();
+            
+            if (typeof aggiornaDashboardAvanzata === 'function') {
+                aggiornaDashboardAvanzata();
+            }
+        } catch (error) {
+            showNotification('error', 'Errore nell\'eliminazione della ricorrenza');
+        }
+    }
+}
+
+// Calendari
 class CalendarChiusure {
     constructor() {
         this.currentDate = new Date();
@@ -1114,20 +1141,20 @@ class CalendarChiusure {
             detailsEl.innerHTML = `
                 <h3>📊 Dettagli Chiusura - ${dateStr}</h3>
                 <pre>
-Scontrinato Totale:     €${chiusuraData.scontrinatoTotale?.toFixed(2) || '0.00'}
-Scontrinato Contanti:   €${chiusuraData.scontrinatoContanti?.toFixed(2) || '0.00'}
-Scontrinato POS:        €${chiusuraData.scontrinatoPOS?.toFixed(2) || '0.00'}
-Art. 74:                €${chiusuraData.articolo74?.toFixed(2) || '0.00'}
-Art. 22:                €${chiusuraData.articolo22?.toFixed(2) || '0.00'}
-Drop POS:               €${chiusuraData.dropPOS?.toFixed(2) || '0.00'}
-Drop Cash:              €${chiusuraData.dropCash?.toFixed(2) || '0.00'}
-Monete G. Precedente:   €${chiusuraData.moneteGiornoPrecedente?.toFixed(2) || '0.00'}
-Monete Attuali:         €${chiusuraData.moneteAttuali?.toFixed(2) || '0.00'}
-Contanti in Cassa:      €${chiusuraData.contantiInCassa?.toFixed(2) || '0.00'}
-Fondo Cassa:            €${chiusuraData.fondoCassa?.toFixed(2) || '0.00'}
+Scontrinato Totale:     €${(chiusuraData.scontrinato_totale || 0).toFixed(2)}
+Scontrinato Contanti:   €${(chiusuraData.scontrinato_contanti || 0).toFixed(2)}
+Scontrinato POS:        €${(chiusuraData.scontrinato_pos || 0).toFixed(2)}
+Art. 74:                €${(chiusuraData.articolo_74 || 0).toFixed(2)}
+Art. 22:                €${(chiusuraData.articolo_22 || 0).toFixed(2)}
+Drop POS:               €${(chiusuraData.drop_pos || 0).toFixed(2)}
+Drop Cash:              €${(chiusuraData.drop_cash || 0).toFixed(2)}
+Monete G. Precedente:   €${(chiusuraData.monete_giorno_precedente || 0).toFixed(2)}
+Monete Attuali:         €${(chiusuraData.monete_attuali || 0).toFixed(2)}
+Contanti in Cassa:      €${(chiusuraData.contanti_in_cassa || 0).toFixed(2)}
+Fondo Cassa:            €${(chiusuraData.fondo_cassa || 0).toFixed(2)}
                 </pre>
                 <button onclick="window.print()">🖨️ Stampa</button>
-                <button onclick="window.calendarChiusure.exportData('${date.toISOString().split('T')[0]}')">📥 Esporta</button>
+                <button onclick="showNotification('info', 'Funzione esportazione in sviluppo')">📥 Esporta</button>
             `;
         } else {
             detailsEl.innerHTML = `
@@ -1137,11 +1164,6 @@ Fondo Cassa:            €${chiusuraData.fondoCassa?.toFixed(2) || '0.00'}
                 </p>
             `;
         }
-    }
-
-    exportData(dateKey) {
-        // Implementa export specifico per data
-        showNotification('info', 'Funzione di export in sviluppo');
     }
 }
 
@@ -1340,8 +1362,11 @@ const notificationStyles = `
 // Aggiungi gli stili al documento
 document.head.insertAdjacentHTML('beforeend', notificationStyles);
 
-// Inizializzazione al caricamento della pagina
+// Inizializzazione
 document.addEventListener('DOMContentLoaded', async () => {
+    // Test connessione Supabase
+    await testSupabaseConnection();
+    
     // Avvia gli aggiornamenti dell'interfaccia
     setInterval(updateModernDateTime, 1000);
     updateModernDateTime();
@@ -1371,34 +1396,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (fatturaForm) fatturaForm.onsubmit = salvaFattura;
     if (resetFatturaBtn) resetFatturaBtn.onclick = () => fatturaForm.reset();
     
-    const ricorrenzaForm = document.getElementById('ricorrenzaForm');
+        const ricorrenzaForm = document.getElementById('ricorrenzaForm');
     const resetRicorrenzaBtn = document.getElementById('resetRicorrenzaForm');
     if (ricorrenzaForm) ricorrenzaForm.onsubmit = salvaRicorrenza;
     if (resetRicorrenzaBtn) resetRicorrenzaBtn.onclick = () => ricorrenzaForm.reset();
     
-    // Configura i filtri
-    const filtroStato = document.getElementById('filtroStato');
-    const filtroFornitore = document.getElementById('filtroFornitore');
-    const filtroRicerca = document.getElementById('filtroRicerca');
-    if (filtroStato) filtroStato.onchange = mostraFatture;
-    if (filtroFornitore) filtroFornitore.onchange = mostraFatture;
-    if (filtroRicerca) filtroRicerca.oninput = mostraFatture;
-    
-    // Configura gestione fornitori
-    const aggiungiFornitoreBtn = document.getElementById('aggiungiFornitore');
-    const nuovoFornitoreInput = document.getElementById('nuovoFornitore');
-    if (aggiungiFornitoreBtn) aggiungiFornitoreBtn.onclick = aggiungiFornitore;
-    if (nuovoFornitoreInput) {
-        nuovoFornitoreInput.onkeypress = (e) => {
-            if (e.key === 'Enter') aggiungiFornitore();
-        };
-    }
-    
     // Inizializza i calendari
-    new CalendarChiusure();
+    window.calendarChiusure = new CalendarChiusure();
     window.cassaCalendar = new CassaCalendar();
     window.chiusuraCassaSystem = new ChiusuraCassaSystem();
     
     showNotification('success', '🎉 Sistema gestionale online inizializzato con successo!');
     console.log('🎉 Sistema aziendale con Supabase inizializzato con successo!');
 });
+
